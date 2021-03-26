@@ -31,7 +31,7 @@ WORKDIR /dist
 RUN cp /build/bms-api .
 
 # Build our final (smaller) image
-FROM zanloy/alpine-va:1.3.0
+FROM zanloy/alpine-va:3.13.3
 
 # Environment for our running app
 ENV GIN_MODE=release \
