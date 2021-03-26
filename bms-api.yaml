@@ -1,0 +1,12 @@
+---
+urls:
+  - name: api_server
+    url: http://kubernetes.default.svc/healthz
+  - name: consul
+    url: http://consul.prod8.bip.va.gov/v1/status/leader
+  - name: grafana
+    url: https://grafana.prod8.bip.va.gov/api/health
+  - name: idm
+    url: https://idm.prod.bip.va.gov/ipa/ui/
+  - name: kibana
+    url: https://kibana.prod8.bip.va.gov/status

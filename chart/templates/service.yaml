@@ -1,0 +1,12 @@
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "bms-api.name" . }}
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    app: {{ include "bms-api.name" . }}
+  ports:
+  - name: http
+    port: 8080

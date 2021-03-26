@@ -1,0 +1,10 @@
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ include "bms-api.name" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "bms-api.labels" . | nindent 4 }}
+data:
+  bms-api.yaml: |- {{ .Values.config | toYaml | nindent 4 }}

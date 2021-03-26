@@ -1,0 +1,64 @@
+package models
+
+import (
+	"context"
+	"github.com/sirupsen/logrus"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+)
+
+type ForemanEvent struct {
+}
+
+type Foreman struct {
+	API           corev1.CoreV1Interface `json:"-"`
+	Context       context.Context        `json:"-"`
+	foremanEvents chan ForemanEvent      `json:"-"`
+	Namespaces    map[string]Namespace   `json:"namespaces"`
+}
+
+func (f *Foreman) Start() (err error) {
+	log := logrus.WithField("component", "foreman")
+	log.Debug("Foreman starting up...")
+
+	f.foremanEvents = make(chan ForemanEvent)
+	f.Namespaces = make(map[string]Namespace)
+
+	log.Debug("Starting namespace watcher...")
+	watcher, err := f.API.Namespaces().Watch(f.Context, metav1.ListOptions{})
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+	ch := watcher.ResultChan()
+	go f.handleK8Events(ch)
+
+	return
+}
+
+func (f *Foreman) handleK8Events(ch <-chan watch.Event) {
+	log := logrus.WithField("component", "foreman").WithField("element", "handleK8Events")
+	var err error = nil
+	for event := range ch {
+		log.Debug("Received event from k8 watcher.")
+
+		namespace, ok := event.Object.(*v1.Namespace)
+		if !ok {
+			log.Error("Failed to type cast event.Object to v1.Namespace.")
+			continue
+		}
+
+		switch event.Type {
+		case watch.Added:
+			logrus.Debugf("Processing 'added' event for namespace %s.", namespace.Name)
+			f.Namespaces[namespace.Name], err = NewNamespace(f.Context, f.API, namespace)
+			if err != nil {
+				log.Error(err)
+			}
+		case watch.Deleted:
+			delete(f.Namespaces, namespace.Name)
+		}
+	}
+}

@@ -1,0 +1,30 @@
+{{- if .Values.ingress.enabled  -}}
+{{- if semverCompare ">=1.14-0" .Capabilities.KubeVersion.GitVersion -}}
+apiVersion: networking.k8s.io/v1beta1
+{{- else -}}
+apiVersion: extensions/v1beta1
+{{- end }}
+kind: Ingress
+metadata:
+  name: {{ include "bms-api.name" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "bms-api.labels" . | nindent 4 }}
+spec:
+{{- if .Values.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+{{- if .Values.ingress.tls.secretname }}
+      secretName: {{ .Values.ingress.tls.secretname }}
+{{- end }}
+{{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: {{ include "bms-api.name" . }}
+              servicePort: 8080
+{{- end }}

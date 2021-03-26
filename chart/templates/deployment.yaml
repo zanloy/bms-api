@@ -1,0 +1,46 @@
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: {{ include "bms-api.name" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "bms-api.labels" . | nindent 4 }}
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: {{ include "bms-api.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "bms-api.name" . }}
+        {{- include "bms-api.labels" . | nindent 8 }}
+    spec:
+      serviceAccount: {{ .Values.serviceaccount.name }}
+      containers:
+        - name: {{ include "bms-api.name" . }}
+          image: {{ .Values.nexus }}/bms-api:{{ .Chart.AppVersion }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config-file
+              mountPath: /bms-api.yaml
+              subPath: bms-api.yaml
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 30
+      volumes:
+        - name: config-file
+          configMap:
+            name: {{ include "bms-api.name" . }}
+      restartPolicy: Always

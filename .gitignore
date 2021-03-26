@@ -1,0 +1,6 @@
+.env
+*.swp
+telepresence.log
+local
+build/*/**
+*.bak
