@@ -40,6 +40,11 @@ ENV GIN_MODE=release \
 # Expose the port we will be using
 EXPOSE 8080
 
+# Setup VA certs for downloading on VPN
+RUN su root -c "apk --no-cache add ca-certificates"
+COPY certs/* /usr/local/share/ca-certificates/
+RUN su root -c "update-ca-certificates"
+
 # Copy in configuration file
 COPY bms-api.yaml /
 
