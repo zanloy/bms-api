@@ -47,6 +47,7 @@ func SetupRouter() *gin.Engine {
 
 	healthGrp := router.Group("/health")
 	{
+		healthGrp.GET("/namespaces", namespaceCtl.GetAllHealth)
 		healthGrp.GET("/namespaces/ws", namespaceCtl.WatchHealth)
 		healthGrp.GET("/nodes", nodeCtl.GetAllHealth)
 		healthGrp.GET("/nodes/ws", nodeCtl.WatchHealth)
@@ -54,12 +55,13 @@ func SetupRouter() *gin.Engine {
 		healthGrp.GET("/pods/ws", podCtl.WatchHealth)
 		healthGrp.GET("/urls", urlCtl.GetAll)
 		healthGrp.GET("/urls/ws", urlCtl.WatchHealth)
+		// This endpoint has no filter and will notify on all health updates
 		healthGrp.GET("/ws", func(ctx *gin.Context) {
 			kubernetes.HealthUpdates.HandleRequest(ctx.Writer, ctx.Request)
 		})
 	}
 
-	router.GET("/namespaces", namespaceCtl.GetAll) // Get all namespaces
+	//router.GET("/namespaces", namespaceCtl.GetAll) // Get all namespaces
 	namespaceGrp := router.Group("/ns")
 	{
 		namespaceGrp.GET("/:name", namespaceCtl.GetNS)

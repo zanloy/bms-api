@@ -6,12 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/zanloy/bms-api/kubernetes"
 	"github.com/zanloy/bms-api/models"
+	"github.com/zanloy/bms-api/wsrouter"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
 type NamespaceController struct{}
 
-func (ctl *NamespaceController) GetAll(ctx *gin.Context) {
+func (ctl *NamespaceController) GetAllHealth(ctx *gin.Context) {
 	namespaces, err := kubernetes.Namespaces().List(labels.Everything())
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err})
@@ -51,5 +52,6 @@ func (ctl *NamespaceController) GetNS(ctx *gin.Context) {
 }
 
 func (ctl *NamespaceController) WatchHealth(ctx *gin.Context) {
-	kubernetes.HealthUpdates.HandleRequestWithKeys(ctx.Writer, ctx.Request, map[string]interface{}{"kind": "namespace"})
+	//kubernetes.HealthUpdates.HandleRequestWithKeys(ctx.Writer, ctx.Request, map[string]interface{}{"kind": "namespace"})
+	wsrouter.HandleRequest("namespace", ctx.Writer, ctx.Request)
 }
