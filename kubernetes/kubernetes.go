@@ -39,6 +39,7 @@ var (
 	Factory       informers.SharedInformerFactory
 	HealthUpdates = melody.New()
 	stopCh        <-chan struct{}
+	tenants       = map[string][]string{} // Key is tenant name, value is envs
 )
 
 func FileExists(filename string) bool {

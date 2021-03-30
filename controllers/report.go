@@ -18,34 +18,38 @@ func (ctl *ReportController) Create(ctx *gin.Context) {
 	report := models.NewReport()
 
 	// Nodes
-	if nodes, err := kubernetes.Nodes().List(labels.Everything()); err == nil {
+	if k8nodes, err := kubernetes.Nodes().List(labels.Everything()); err == nil {
 		// Make the nodes list the size of our nodes
-		nodelist := make([]models.ReportNode, len(nodes))
+		nodelist := make([]models.Node, len(k8nodes))
 		// Loop through the nodes
-		for idx, node := range nodes {
-			rn := models.ReportNode{Name: node.Name}
+		for idx, k8node := range k8nodes {
+			node := models.FromK8Node(*k8node)
 			// Conditions
-			for _, condition := range node.Status.Conditions {
+			for _, condition := range k8node.Status.Conditions {
 				if condition.Status == v1.ConditionTrue {
-					rn.Conditions = append(rn.Conditions, string(condition.Type))
+					node.Conditions = append(node.Conditions, string(condition.Type))
 				}
 			}
 			// Versions
-			rn.KernelVersion = node.Status.NodeInfo.KernelVersion
-			rn.KubeletVersion = node.Status.NodeInfo.KubeletVersion
+			node.KernelVersion = k8node.Status.NodeInfo.KernelVersion
+			node.KubeletVersion = k8node.Status.NodeInfo.KubeletVersion
 			// CPU Metrics
-			rn.CPU = models.ReportResourceData{
-				Allocatable: node.Status.Allocatable["cpu"],
-				// TODO: add allocated and utilized
-			}
-			// Memory Metrics
-			rn.Memory = models.ReportResourceData{
-				Allocatable: node.Status.Allocatable["memory"],
-				// TODO: add allocated and utilized
+			if metrics, err := kubernetes.GetNodeMetrics(node); err == nil {
+				node.CPU = models.ResourceQuantities{
+					Allocatable: k8node.Status.Allocatable["cpu"],
+					// TODO: add allocated
+					Utilized: metrics.Usage["cpu"],
+				}
+				// Memory Metrics
+				node.Memory = models.ResourceQuantities{
+					Allocatable: k8node.Status.Allocatable["memory"],
+					// TODO: add allocated
+					Utilized: metrics.Usage["memory"],
+				}
 			}
 			// Add to array
-			nodelist[idx] = rn
-			fmt.Printf("rn = %+v\n", rn)
+			nodelist[idx] = node
+			fmt.Printf("node = %+v\n", node)
 		}
 		// Attach nodelist to report
 		report.Nodes = nodelist
