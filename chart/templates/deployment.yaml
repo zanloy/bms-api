@@ -22,6 +22,12 @@ spec:
         - name: {{ include "bms-api.name" . }}
           image: {{ .Values.nexus }}/bms-api:{{ .Chart.AppVersion }}
           imagePullPolicy: Always
+          env:
+            - name: BMS_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
           ports:
             - containerPort: 8080
           volumeMounts:
