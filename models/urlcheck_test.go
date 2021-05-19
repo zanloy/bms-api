@@ -6,7 +6,6 @@ import (
 
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	. "github.com/zanloy/bms-api/models"
 )
 
@@ -265,19 +264,20 @@ func TestCheck(t *testing.T) {
 	for _, testcase := range testCases {
 		testcase.subj.Check()
 
-		require.NotNil(t, testcase.subj.Report, "Report can not be nil.")
 		if testcase.errors {
-			assert.NotEmpty(t, testcase.subj.Report.Errors, fmt.Sprintf("No errors occurred %s", testcase.desc))
+			assert.NotEmpty(t, testcase.subj.Errors, fmt.Sprintf("No errors occurred %s", testcase.desc))
 		} else {
-			assert.Empty(t, testcase.subj.Report.Errors, fmt.Sprintf("Errors occurred %s", testcase.desc))
+			assert.Empty(t, testcase.subj.Errors, fmt.Sprintf("Errors occurred %s", testcase.desc))
 		}
-		assert.Equal(t, testcase.healthy, testcase.subj.Report.Healthy, fmt.Sprintf("Healthy assertion fails %s", testcase.desc))
-		assert.Equal(t, testcase.text, testcase.subj.Report.Text, fmt.Sprintf("Text assertion fails %s", testcase.desc))
+		assert.Equal(t, testcase.healthy, testcase.subj.Healthy, fmt.Sprintf("Healthy assertion fails %s", testcase.desc))
+		assert.Equal(t, testcase.text, testcase.subj.Text, fmt.Sprintf("Text assertion fails %s", testcase.desc))
 	}
 
 	// Finally we do a one-off test if RestClient isn't initialized for some reason.
 	check := URLCheck{}
 	RestyClient = nil
-	report := check.Check()
-	assert.NotEmpty(t, report.Errors, "We should error if RestyClient is nil.")
+
+	check.Check()
+
+	assert.NotEmpty(t, check.Errors, "We should error if RestyClient is nil.")
 }

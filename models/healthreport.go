@@ -44,23 +44,23 @@ func NewHealthReport() HealthReport {
 func HealthReportFor(obj interface{}, factory informers.SharedInformerFactory) (HealthReport, error) {
 	switch typed := obj.(type) {
 	case *extensionsv1beta1.DaemonSet:
-		return HealthReportForDaemonSet(typed), nil
+		return HealthReportForDaemonSet(*typed), nil
 	case *extensionsv1beta1.Deployment:
-		return HealthReportForDeployment(typed), nil
+		return HealthReportForDeployment(*typed), nil
 	case *corev1.Namespace:
-		return HealthReportForNamespace(typed, factory), nil
+		return HealthReportForNamespace(*typed, factory), nil
 	case *corev1.Node:
-		return HealthReportForNode(typed), nil
+		return HealthReportForNode(*typed), nil
 	case *corev1.Pod:
-		return HealthReportForPod(typed), nil
+		return HealthReportForPod(*typed), nil
 	case *appsv1.StatefulSet:
-		return HealthReportForStatefulSet(typed), nil
+		return HealthReportForStatefulSet(*typed), nil
 	default:
 		return NewHealthReport(), fmt.Errorf("Can not generate a report for object: %+v", typed)
 	}
 }
 
-func HealthReportForDaemonSet(daemonset *extensionsv1beta1.DaemonSet) HealthReport {
+func HealthReportForDaemonSet(daemonset extensionsv1beta1.DaemonSet) HealthReport {
 	report := NewHealthReport()
 	report.Kind = daemonset.Kind
 	report.Namespace = daemonset.Namespace
@@ -79,7 +79,7 @@ func HealthReportForDaemonSet(daemonset *extensionsv1beta1.DaemonSet) HealthRepo
 	return report
 }
 
-func HealthReportForDeployment(deployment *extensionsv1beta1.Deployment) HealthReport {
+func HealthReportForDeployment(deployment extensionsv1beta1.Deployment) HealthReport {
 	report := NewHealthReport()
 	report.Kind = deployment.Kind
 	report.Namespace = deployment.Namespace
@@ -100,7 +100,7 @@ func HealthReportForDeployment(deployment *extensionsv1beta1.Deployment) HealthR
 	return report
 }
 
-func HealthReportForNamespace(namespace *corev1.Namespace, f informers.SharedInformerFactory) HealthReport {
+func HealthReportForNamespace(namespace corev1.Namespace, f informers.SharedInformerFactory) HealthReport {
 	nsreport := NewHealthReport()
 	nsreport.Kind = namespace.Kind
 	nsreport.Name = namespace.Name
@@ -110,7 +110,7 @@ func HealthReportForNamespace(namespace *corev1.Namespace, f informers.SharedInf
 	if daemonsets, err := f.Extensions().V1beta1().DaemonSets().Lister().DaemonSets(namespace.Name).List(labels.Everything()); err == nil {
 		unhealthyDaemonSets := make([]string, 0, len(daemonsets))
 		for _, daemonset := range daemonsets {
-			report := HealthReportForDaemonSet(daemonset)
+			report := HealthReportForDaemonSet(*daemonset)
 			if report.Healthy != StatusHealthy {
 				unhealthyDaemonSets = append(unhealthyDaemonSets, daemonset.Name)
 			}
@@ -127,7 +127,7 @@ func HealthReportForNamespace(namespace *corev1.Namespace, f informers.SharedInf
 	if deployments, err := f.Extensions().V1beta1().Deployments().Lister().Deployments(namespace.Name).List(labels.Everything()); err == nil {
 		unhealthyDeployments := make([]string, 0, len(deployments))
 		for _, deployment := range deployments {
-			report := HealthReportForDeployment(deployment)
+			report := HealthReportForDeployment(*deployment)
 			if report.Healthy != StatusHealthy {
 				unhealthyDeployments = append(unhealthyDeployments, deployment.Name)
 			}
@@ -144,7 +144,7 @@ func HealthReportForNamespace(namespace *corev1.Namespace, f informers.SharedInf
 	if pods, err := f.Core().V1().Pods().Lister().Pods(namespace.Name).List(labels.Everything()); err == nil {
 		unhealthyPods := make([]string, 0, len(pods))
 		for _, pod := range pods {
-			report := HealthReportForPod(pod)
+			report := HealthReportForPod(*pod)
 			if report.Healthy != StatusHealthy {
 				unhealthyPods = append(unhealthyPods, pod.Name)
 			}
@@ -161,7 +161,7 @@ func HealthReportForNamespace(namespace *corev1.Namespace, f informers.SharedInf
 	if services, err := f.Core().V1().Services().Lister().Services(namespace.Name).List(labels.Everything()); err == nil {
 		unhealthyServices := make([]string, 0, len(services))
 		for _, service := range services {
-			report := HealthReportForService(service, f)
+			report := HealthReportForService(*service, f)
 			if report.Healthy != StatusHealthy {
 				unhealthyServices = append(unhealthyServices, service.Name)
 			}
@@ -178,7 +178,7 @@ func HealthReportForNamespace(namespace *corev1.Namespace, f informers.SharedInf
 	if statefulsets, err := f.Apps().V1().StatefulSets().Lister().StatefulSets(namespace.Name).List(labels.Everything()); err == nil {
 		unhealthyStatefulSets := make([]string, 0, len(statefulsets))
 		for _, statefulset := range statefulsets {
-			report := HealthReportForStatefulSet(statefulset)
+			report := HealthReportForStatefulSet(*statefulset)
 			if report.Healthy != StatusHealthy {
 				unhealthyStatefulSets = append(unhealthyStatefulSets, statefulset.Name)
 			}
@@ -199,7 +199,7 @@ func HealthReportForNamespace(namespace *corev1.Namespace, f informers.SharedInf
 	return nsreport
 }
 
-func HealthReportForNode(node *corev1.Node) HealthReport {
+func HealthReportForNode(node corev1.Node) HealthReport {
 	report := NewHealthReport()
 	report.Kind = "Node"
 	report.Name = node.Name
@@ -226,7 +226,7 @@ func HealthReportForNode(node *corev1.Node) HealthReport {
 	return report
 }
 
-func HealthReportForPod(pod *corev1.Pod) HealthReport {
+func HealthReportForPod(pod corev1.Pod) HealthReport {
 	report := NewHealthReport()
 	report.Kind = "Pod"
 	report.Namespace = pod.Namespace
@@ -266,7 +266,7 @@ func HealthReportForPod(pod *corev1.Pod) HealthReport {
 	return report
 }
 
-func HealthReportForService(service *corev1.Service, f informers.SharedInformerFactory) HealthReport {
+func HealthReportForService(service corev1.Service, f informers.SharedInformerFactory) HealthReport {
 	//   - A service is considered unhealthy if no pods are handling requests
 	report := NewHealthReport()
 	report.Kind = service.Kind
@@ -279,7 +279,7 @@ func HealthReportForService(service *corev1.Service, f informers.SharedInformerF
 	if err == nil {
 		var podReport HealthReport
 		for _, pod := range pods {
-			podReport = HealthReportForPod(pod)
+			podReport = HealthReportForPod(*pod)
 			if podReport.Healthy == StatusHealthy {
 				// We are good if even a single pod is Ready
 				report.Healthy = StatusHealthy
@@ -295,7 +295,7 @@ func HealthReportForService(service *corev1.Service, f informers.SharedInformerF
 	return report
 }
 
-func HealthReportForStatefulSet(statefulset *appsv1.StatefulSet) HealthReport {
+func HealthReportForStatefulSet(statefulset appsv1.StatefulSet) HealthReport {
 	report := NewHealthReport()
 	report.Kind = statefulset.Kind
 	report.Namespace = statefulset.Namespace

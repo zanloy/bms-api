@@ -1,10 +1,10 @@
 package models
 
 import (
-	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+	appsv1 "k8s.io/api/apps/v1"
 )
 
-type Deployment struct {
+type StatefulSet struct {
 	Name        string        `json:"name"`
 	Namespace   string        `json:"namespace"`
 	Tenant      string        `json:"tenant,omitempty"`
@@ -13,21 +13,21 @@ type Deployment struct {
 	Errors      []string      `json:"errors,omitempty"`
 }
 
-func FromK8Deployment(deployment extensionsv1beta1.Deployment) Deployment {
+func FromK8StatefulSet(statefulset appsv1.StatefulSet) StatefulSet {
 	var (
 		report              HealthReport
 		tenant, environment string
 	)
 
 	// Get tenant info
-	tenant, environment = parseTenantAndEnv(deployment.Namespace)
+	tenant, environment = parseTenantAndEnv(statefulset.Namespace)
 
 	// Get health report
-	report = HealthReportForDeployment(deployment)
+	report = HealthReportForStatefulSet(statefulset)
 
-	return Deployment{
-		Name:        deployment.Name,
-		Namespace:   deployment.Namespace,
+	return StatefulSet{
+		Name:        statefulset.Name,
+		Namespace:   statefulset.Namespace,
 		Tenant:      tenant,
 		Environment: environment,
 		Healthy:     report.Healthy,

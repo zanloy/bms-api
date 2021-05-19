@@ -1,23 +1,36 @@
 package models
 
 import (
-	v1 "k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 )
 
 type DaemonSet struct {
-	object    extensionsv1beta1.DaemonSet
-	Name      string             `json:"name"`
-	Namespace string             `json:"namespace"`
-	Healthy   v1.ConditionStatus `json:"healthy"`
-	Report    *HealthReport      `json:"report,omitempty"`
+	Name        string        `json:"name"`
+	Namespace   string        `json:"namespace"`
+	Tenant      string        `json:"tenant,omitempty"`
+	Environment string        `json:"environment,omitempty"`
+	Healthy     HealthyStatus `json:"healthy"`
+	Errors      []string      `json:"errors,omitempty"`
 }
 
-func FromK8DaemonSet(input extensionsv1beta1.DaemonSet) DaemonSet {
+func FromK8DaemonSet(daemonset extensionsv1beta1.DaemonSet) DaemonSet {
+	var (
+		report              HealthReport
+		tenant, environment string
+	)
+
+	// Get tenant info
+	tenant, environment = parseTenantAndEnv(daemonset.Namespace)
+
+	// Get health report
+	report = HealthReportForDaemonSet(daemonset)
+
 	return DaemonSet{
-		object:    input,
-		Name:      input.Name,
-		Namespace: input.Namespace,
-		Healthy:   v1.ConditionUnknown,
+		Name:        daemonset.Name,
+		Namespace:   daemonset.Namespace,
+		Tenant:      tenant,
+		Environment: environment,
+		Healthy:     report.Healthy,
+		Errors:      report.Errors,
 	}
 }
