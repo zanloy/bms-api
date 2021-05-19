@@ -9,17 +9,24 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/zanloy/bms-api/kubernetes"
 	"github.com/zanloy/bms-api/models"
 	"gopkg.in/olahol/melody.v1"
 )
 
 var (
-	logger        zerolog.Logger
-	targets       []models.URLCheck
-	mutex         = sync.Mutex{}
-	HealthUpdates = melody.New()
+	logger  zerolog.Logger
+	targets []models.URLCheck
+	mutex   = sync.Mutex{}
 )
 
+// GetTargets will return an array of all the targets being monitored.
+func GetTargets() []models.URLCheck {
+	return targets
+}
+
+// Start will begin monitoring all URLCheck targets until told to stop via the
+// stopCh channel.
 func Start(targetsin []models.URLCheck, stopCh <-chan struct{}) {
 	logger = log.With().
 		Timestamp().
@@ -64,30 +71,31 @@ func runChecks() {
 		go func(target *models.URLCheck) {
 			defer wg.Done()
 			var prevHealthy models.HealthyStatus = models.StatusUnknown
-			if target.Report != nil {
-				prevHealthy = target.Report.Healthy
-			}
+			prevHealthy = target.Healthy
 			logger.Debug().
 				Str("previous_healthy", string(prevHealthy)).
 				Msg(fmt.Sprintf("Checking %s", target.Url))
 			start_time := time.Now()
-			report := target.Check()
+
+			target.Check()
+
 			logger.Debug().
 				Str("previous_healthy", string(prevHealthy)).
-				Str("healthy", string(report.Healthy)).
+				Str("healthy", string(target.Healthy)).
 				Msg(fmt.Sprintf("Completed check of %s in %.2fs.", target.Url, time.Since(start_time).Seconds()))
-			if report.Healthy != prevHealthy {
+
+			if target.Healthy != prevHealthy {
 				// Alert the press!
 				update := models.HealthUpdate{
 					Action:          "update",
 					Kind:            "url",
 					Name:            target.Name,
-					Healthy:         report.Healthy,
+					Healthy:         target.Healthy,
 					PreviousHealthy: prevHealthy,
-					Errors:          report.Errors,
+					Errors:          target.Errors,
 				}
 
-				HealthUpdates.BroadcastFilter(update.ToMsg(), func(s *melody.Session) bool {
+				kubernetes.HealthUpdates.BroadcastFilter(update.ToMsg(), func(s *melody.Session) bool {
 					sessKind, ok := s.Get("kind")
 					if !ok || sessKind == "url" || sessKind == "all" {
 						return true
