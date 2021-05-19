@@ -55,7 +55,7 @@ func (ctl *PodController) GetSingle(ctx *gin.Context) {
 		})
 	}
 
-	report := models.HealthReportForPod(pod)
+	report := models.HealthReportForPod(*pod)
 	result := PodWithReport{
 		Pod:    *pod,
 		Health: report,

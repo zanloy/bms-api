@@ -27,7 +27,7 @@ func (ctl *NamespaceController) GetAllHealth(ctx *gin.Context) {
 	results := make([]models.Namespace, len(namespaces))
 	for idx, namespace := range namespaces {
 		ns = models.FromK8Namespace(namespace)
-		report = models.HealthReportForNamespace(namespace, kubernetes.Factory)
+		report = models.HealthReportForNamespace(*namespace, kubernetes.Factory)
 		ns.Healthy = report.Healthy
 		ns.Errors = report.Errors
 		results[idx] = ns
@@ -44,7 +44,7 @@ func (ctl *NamespaceController) GetNS(ctx *gin.Context) {
 	}
 
 	ns := models.FromK8Namespace(namespace)
-	report := models.HealthReportForNamespace(namespace, kubernetes.Factory)
+	report := models.HealthReportForNamespace(*namespace, kubernetes.Factory)
 	ns.Healthy = report.Healthy
 	ns.Errors = report.Errors
 
