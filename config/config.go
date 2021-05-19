@@ -58,7 +58,7 @@ func Load() {
 func reload(e fsnotify.Event) {
 	logger.Info().Msg("Config file changed. Reloading...")
 	var newconfig = models.Config{}
-	if err := viper.Unmarshal(&newconfig); err != nil {
+	if err := viper.Unmarshal(&newconfig); err == nil {
 		Config = newconfig
 		url.Reload(Config.Urls) // Reload our url checks
 		wsrouter.LoadFilters(Config.Filters)
