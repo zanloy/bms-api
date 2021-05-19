@@ -91,7 +91,7 @@ func broadcastNamespaceHealth(name string) {
 
 		ns, err := Factory.Core().V1().Namespaces().Lister().Get(name)
 		if err == nil {
-			report := models.HealthReportForNamespace(ns, Factory)
+			report := models.HealthReportForNamespace(*ns, Factory)
 			update := models.HealthUpdate{
 				Action:  "refresh",
 				Kind:    "namespace",
@@ -109,155 +109,141 @@ func broadcastNamespaceHealth(name string) {
 
 func handleAdd(obj interface{}) {
 	var (
-		kind, namespace, name string
-		report                models.HealthReport
-		filter                filterFunc
+		//kind, namespace, name string
+		report models.HealthReport
+		filter filterFunc
+		err    error
 	)
 
-	switch typed := obj.(type) {
-	case *corev1.Namespace:
-		kind = "namespace"
-		namespace = ""
-		name = typed.Name
-		report = models.HealthReportForNamespace(typed, Factory)
-		filter = filterNamespace
-	case *corev1.Node:
-		kind = "node"
-		namespace = ""
-		name = typed.Name
-		report = models.HealthReportForNode(typed)
-		filter = filterNode
-	case *corev1.Pod:
-		kind = "pod"
-		namespace = typed.Namespace
-		name = typed.Name
-		report = models.HealthReportForPod(typed)
-		filter = filterPod
-	case *appsv1.StatefulSet:
-		kind = "statefulset"
-		namespace = typed.Namespace
-		name = typed.Name
-		report = models.HealthReportForStatefulSet(typed)
-		filter = filterStatefulSet
-	case *extensionsv1beta1.DaemonSet:
-		kind = "daemonset"
-		namespace = typed.Namespace
-		name = typed.Name
-		report = models.HealthReportForDaemonSet(typed)
-		filter = filterDaemonSet
-	case *extensionsv1beta1.Deployment:
-		kind = "deployment"
-		namespace = typed.Namespace
-		name = typed.Name
-		report = models.HealthReportForDeployment(typed)
-		filter = filterDeployment
-	default:
-		logger.Debug().Interface("object", typed).Msg("Failed to assert type of object.")
+	/*
+		switch typed := obj.(type) {
+		case *corev1.Namespace:
+			kind = "namespace"
+			namespace = ""
+			name = typed.Name
+			report = models.HealthReportForNamespace(*typed, Factory)
+			filter = filterNamespace
+		case *corev1.Node:
+			kind = "node"
+			namespace = ""
+			name = typed.Name
+			report = models.HealthReportForNode(*typed)
+			filter = filterNode
+		case *corev1.Pod:
+			kind = "pod"
+			namespace = typed.Namespace
+			name = typed.Name
+			report = models.HealthReportForPod(*typed)
+			filter = filterPod
+		case *appsv1.StatefulSet:
+			kind = "statefulset"
+			namespace = typed.Namespace
+			name = typed.Name
+			report = models.HealthReportForStatefulSet(*typed)
+			filter = filterStatefulSet
+		case *extensionsv1beta1.DaemonSet:
+			kind = "daemonset"
+			namespace = typed.Namespace
+			name = typed.Name
+			report = models.HealthReportForDaemonSet(*typed)
+			filter = filterDaemonSet
+		case *extensionsv1beta1.Deployment:
+			kind = "deployment"
+			namespace = typed.Namespace
+			name = typed.Name
+			report = models.HealthReportForDeployment(*typed)
+			filter = filterDeployment
+		default:
+			logger.Debug().Interface("object", typed).Msg("Failed to assert type of object.")
+			return
+		}
+	*/
+	if report, err = models.HealthReportFor(obj, Factory); err != nil {
+		logger.Err(err)
 		return
 	}
 
 	update := models.HealthUpdate{
 		Action:    "add",
-		Kind:      kind,
-		Namespace: namespace,
-		Name:      name,
+		Kind:      report.Kind,
+		Namespace: report.Namespace,
+		Name:      report.Name,
 		Healthy:   report.Healthy,
 		Errors:    report.Errors,
 	}
 
 	//logger.Debug().Interface("object", obj).Msg("Add event occurred.")
 	HealthUpdates.BroadcastFilter(update.ToMsg(), filter)
-	broadcastNamespaceHealth(namespace)
+	broadcastNamespaceHealth(report.Namespace)
 }
 
 func handleUpdate(prevObj interface{}, obj interface{}) {
 	var (
-		kind, namespace, name string
-		filter                filterFunc
-		report, prevReport    models.HealthReport
+		//kind, namespace, name string
+		filter             filterFunc
+		report, prevReport models.HealthReport
 	)
 
-	// TODO: Handle the case where the object is renamed. We need to alert the
-	//       clients that the old name has been removed.
-
-	//switch typed := prevObj.(type) {
-	//case *corev1.Namespace:
-	//	prevReport = models.HealthReportForNamespace(*typed, Factory)
-	//case *corev1.Node:
-	//	prevReport = models.HealthReportForNode(*typed)
-	//case *corev1.Pod:
-	//	prevReport = models.HealthReportForPod(*typed)
-	//case *appsv1.StatefulSet:
-	//	prevReport = models.HealthReportForStatefulSet(*typed)
-	//case *extensionsv1beta1.DaemonSet:
-	//	prevReport = models.HealthReportForDaemonSet(*typed)
-	//case *extensionsv1beta1.Deployment:
-	//	prevReport = models.HealthReportForDeployment(*typed)
-	//case cache.DeletedFinalStateUnknown:
-	//	prevReport = models.NewHealthReport()
-	//default:
-	//	logger.Debug().Interface("object", typed).Msg("Failed to assert type of object.")
-	//	prevReport = models.NewHealthReport()
-	//}
 	prevReport, err := models.HealthReportFor(prevObj, Factory)
 	if err != nil {
 		logger.Err(err)
 		return
 	}
 
-	switch typed := obj.(type) {
-	case *corev1.Namespace:
-		kind = "namespace"
-		namespace = ""
-		name = typed.Name
-		report = models.HealthReportForNamespace(typed, Factory)
-		filter = filterNamespace
-	case *corev1.Node:
-		kind = "node"
-		namespace = ""
-		name = typed.Name
-		report = models.HealthReportForNode(typed)
-		filter = filterNode
-	case *corev1.Pod:
-		kind = "pod"
-		namespace = typed.Namespace
-		name = typed.Name
-		report = models.HealthReportForPod(typed)
-		filter = filterPod
-	case *appsv1.StatefulSet:
-		kind = "statefulset"
-		namespace = typed.Namespace
-		name = typed.Name
-		report = models.HealthReportForStatefulSet(typed)
-		filter = filterStatefulSet
-	case *extensionsv1beta1.DaemonSet:
-		kind = "daemonset"
-		namespace = typed.Namespace
-		name = typed.Name
-		report = models.HealthReportForDaemonSet(typed)
-		filter = filterDaemonSet
-	case *extensionsv1beta1.Deployment:
-		kind = "deployment"
-		namespace = typed.Namespace
-		name = typed.Name
-		report = models.HealthReportForDeployment(typed)
-		filter = filterDeployment
-	default:
-		logger.Debug().Interface("object", typed).Msg("Failed to assert type of object.")
+	/*
+		switch typed := obj.(type) {
+		case *corev1.Namespace:
+			kind = "namespace"
+			namespace = ""
+			name = typed.Name
+			report = models.HealthReportForNamespace(*typed, Factory)
+			filter = filterNamespace
+		case *corev1.Node:
+			kind = "node"
+			namespace = ""
+			name = typed.Name
+			report = models.HealthReportForNode(*typed)
+			filter = filterNode
+		case *corev1.Pod:
+			kind = "pod"
+			namespace = typed.Namespace
+			name = typed.Name
+			report = models.HealthReportForPod(*typed)
+			filter = filterPod
+		case *appsv1.StatefulSet:
+			kind = "statefulset"
+			namespace = typed.Namespace
+			name = typed.Name
+			report = models.HealthReportForStatefulSet(*typed)
+			filter = filterStatefulSet
+		case *extensionsv1beta1.DaemonSet:
+			kind = "daemonset"
+			namespace = typed.Namespace
+			name = typed.Name
+			report = models.HealthReportForDaemonSet(*typed)
+			filter = filterDaemonSet
+		case *extensionsv1beta1.Deployment:
+			kind = "deployment"
+			namespace = typed.Namespace
+			name = typed.Name
+			report = models.HealthReportForDeployment(*typed)
+			filter = filterDeployment
+		default:
+			logger.Debug().Interface("object", typed).Msg("Failed to assert type of object.")
+			return
+		}
+	*/
+	if report, err = models.HealthReportFor(obj, Factory); err != nil {
+		logger.Err(err)
 		return
 	}
-	//report, err := models.HealthReportFor(currObj, Factory)
-	//if err != nil {
-	//	logger.Err(err)
-	//	return
-	//}
 
 	if report.Healthy != prevReport.Healthy {
 		update := models.HealthUpdate{
 			Action:          "update",
-			Kind:            kind,
-			Namespace:       namespace,
-			Name:            name,
+			Kind:            report.Kind,
+			Namespace:       report.Namespace,
+			Name:            report.Name,
 			Healthy:         report.Healthy,
 			PreviousHealthy: prevReport.Healthy,
 			Errors:          report.Errors,
@@ -265,7 +251,7 @@ func handleUpdate(prevObj interface{}, obj interface{}) {
 
 		//logger.Debug().Interface("object", obj).Msg("Update event occurred.")
 		HealthUpdates.BroadcastFilter(update.ToMsg(), filter)
-		broadcastNamespaceHealth(namespace)
+		broadcastNamespaceHealth(report.Namespace)
 	}
 }
 
@@ -281,37 +267,37 @@ func handleDelete(obj interface{}) {
 		kind = "namespace"
 		namespace = ""
 		name = typed.Name
-		report = models.HealthReportForNamespace(typed, Factory)
+		report = models.HealthReportForNamespace(*typed, Factory)
 		filter = filterNamespace
 	case *corev1.Node:
 		kind = "node"
 		namespace = ""
 		name = typed.Name
-		report = models.HealthReportForNode(typed)
+		report = models.HealthReportForNode(*typed)
 		filter = filterNode
 	case *corev1.Pod:
 		kind = "pod"
 		namespace = typed.Namespace
 		name = typed.Name
-		report = models.HealthReportForPod(typed)
+		report = models.HealthReportForPod(*typed)
 		filter = filterPod
 	case *appsv1.StatefulSet:
 		kind = "statefulset"
 		namespace = typed.Namespace
 		name = typed.Name
-		report = models.HealthReportForStatefulSet(typed)
+		report = models.HealthReportForStatefulSet(*typed)
 		filter = filterStatefulSet
 	case *extensionsv1beta1.DaemonSet:
 		kind = "daemonset"
 		namespace = typed.Namespace
 		name = typed.Name
-		report = models.HealthReportForDaemonSet(typed)
+		report = models.HealthReportForDaemonSet(*typed)
 		filter = filterDaemonSet
 	case *extensionsv1beta1.Deployment:
 		kind = "deployment"
 		namespace = typed.Namespace
 		name = typed.Name
-		report = models.HealthReportForDeployment(typed)
+		report = models.HealthReportForDeployment(*typed)
 		filter = filterDeployment
 	//case cache.DeletedFinalStateUnknown: // This is a placeholder until I figure out something better to do in this case.
 	default:
