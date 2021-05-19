@@ -2,6 +2,7 @@ package wsrouter
 
 import (
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 
@@ -30,6 +31,14 @@ func init() {
 }
 
 var filters = map[string][]string{}
+
+func HandleRequest(kind string, w http.ResponseWriter, r *http.Request) error {
+	if hasOutbox(kind) == false {
+		return fmt.Errorf("There is no outbox in wsrouter for %s.", kind)
+	}
+	box := outboxes[kind]
+	return box.HandleRequest(w, r)
+}
 
 func LoadFilters(input []models.Filter) {
 	// Initialize our data structure
@@ -78,6 +87,15 @@ func Broadcast(update models.HealthUpdate) error {
 	}
 
 	return nil
+}
+
+func hasOutbox(name string) bool {
+	for key, _ := range outboxes {
+		if key == name {
+			return true
+		}
+	}
+	return false
 }
 
 // The following is old code that is not currently used.
