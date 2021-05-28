@@ -37,7 +37,7 @@ func (ctl *NamespaceController) GetAllHealth(ctx *gin.Context) {
 }
 
 func (ctl *NamespaceController) GetNS(ctx *gin.Context) {
-	namespace, err := kubernetes.Factory.Core().V1().Namespaces().Lister().Get(ctx.Param("name"))
+	namespace, err := kubernetes.Namespaces().Get(ctx.Param("name"))
 	if err != nil {
 		ctx.JSON(500, gin.H{"error": err})
 		return

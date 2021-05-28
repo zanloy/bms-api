@@ -1,34 +1,40 @@
 package kubernetes_test
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/zanloy/bms-api/kubernetes"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/informers"
-	ogkubernetes "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-func startK8(stopCh <-chan struct{}) ogkubernetes.Interface {
-	clientset := fake.NewSimpleClientset(
-		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test1"}},
-		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test2"}},
-		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test3"}},
+func genNamespace(name string) *corev1.Namespace {
+	return &corev1.Namespace{
+		TypeMeta:   metav1.TypeMeta{Kind: "Namespace"},
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+	}
+}
+
+func startK8(stopCh <-chan struct{}) {
+	// setup mock server
+	kubernetes.Clientset = fake.NewSimpleClientset(
+		genNamespace("test1"),
+		genNamespace("test2"),
+		genNamespace("test3"),
 	)
 
-	// setup mock server
-	kubernetes.Clientset = clientset
+	if namespaces, err := kubernetes.Clientset.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{}); err == nil {
+		fmt.Printf("namespaces = %+v\n", namespaces)
+	} else {
+		fmt.Printf("There was an error trying to get namespace list: %s\n", err.Error())
+	}
 
 	// Start kubernetes component
-	factory := informers.NewSharedInformerFactory(clientset, 0)
-	go factory.Start(stopCh)
-	factory.WaitForCacheSync(stopCh)
-	kubernetes.Factory = factory
-
-	return clientset
+	kubernetes.Start(stopCh)
 }
 
 func TestNamespaceExists(t *testing.T) {

@@ -67,10 +67,10 @@ func SetupRouter() *gin.Engine {
 		namespaceGrp.GET("/:name", namespaceCtl.GetNS)
 	}
 
+	router.GET("/report", reportCtl.Create)
 	reportsGrp := router.Group("/reports")
 	{
 		reportsGrp.GET("/create", reportCtl.Create)
-		reportsGrp.GET("/list", reportCtl.List)
 	}
 
 	logger.Debug().Msg("Router successfully initialized.")

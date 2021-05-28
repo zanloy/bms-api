@@ -8,7 +8,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/zanloy/bms-api/kubernetes"
 	"github.com/zanloy/bms-api/models"
-	"github.com/zanloy/bms-api/storage"
 	"github.com/zanloy/bms-api/url"
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -96,15 +95,12 @@ func (ctl *ReportController) Create(ctx *gin.Context) {
 	// URLs
 	report.URLs = url.GetTargets()
 
-	// Save the report
-	err := storage.SaveReport(report)
-	if err != nil {
-		report.Errors = append(report.Errors, err.Error())
-	}
-
+	// Return results to client
 	ctx.JSON(http.StatusOK, report)
 }
 
+// DISABLED
+/*
 func (ctl *ReportController) List(ctx *gin.Context) {
 	reports, err := storage.ListReports()
 	if err != nil {
@@ -114,6 +110,7 @@ func (ctl *ReportController) List(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, reports)
 }
+*/
 
 func logAndAppendError(err error, report *models.Report) {
 	logger = log.With().

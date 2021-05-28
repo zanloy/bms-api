@@ -4,3 +4,4 @@ telepresence.log
 local
 build/*/**
 *.bak
+__debug_bin

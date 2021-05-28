@@ -105,11 +105,12 @@ func Start(stopChannel <-chan struct{}) {
 	setupInformers()
 	go Factory.Start(stopCh)
 
+	// TODO: Add a timeout to this.
 	/* Wait for cache to sync */
 	logger.Info().Msg("Waiting for cache to sync...")
 	startTime := time.Now()
-	// TODO: Add a timeout to this.
-	Factory.WaitForCacheSync(stopCh)
+	result := Factory.WaitForCacheSync(stopCh)
+	fmt.Printf("result = %+v\n", result)
 	logger.Info().Msg(fmt.Sprintf("Cache sync completed [%.2fs].", time.Since(startTime).Seconds()))
 
 	logger.Info().Msg("Kubernetes controller startup complete.")
@@ -124,7 +125,7 @@ func mustBeInitialized() {
 }
 
 func NamespaceExists(name string) bool {
-	ns, err := Factory.Core().V1().Namespaces().Lister().Get(name)
+	ns, err := Namespaces().Get(name)
 	fmt.Println(name)
 	fmt.Printf("ns = %+v\n", ns)
 	fmt.Printf("err = %+v\n", err)
