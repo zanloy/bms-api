@@ -4,6 +4,8 @@ VERSION != head -n 1 version.txt | tr -d '\n'
 NEXUS := container-registry.prod8.bip.va.gov:443
 TAG := $(NEXUS)/bms-api:$(VERSION)
 
+.PHONY: build push run
+
 build:
 	@echo "Building bms-api docker image..."
 	docker build . -t bms-api:$(VERSION)
