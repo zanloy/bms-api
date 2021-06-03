@@ -5,12 +5,12 @@ namespace: bms
 
 config:
   urls:
-  - name: K8 API Server
-    url: https://kubernetes.default.svc/healthz
-  - name: BMS
-    url: http://bms.bms:5000/health
+  - name: BMS UI
+    url: http://bms.bms.svc:5000/health
   - name: Consul
     url: https://prod8-consul.vault:8500/v1/status/leader
+  - name: Vault
+    url: http://prod8-vault.vault:8200/v1/sys/health?standbyok=true
   - name: dex
     url: http://dex.auth:5556/healthz
   - name: ElasticSearch
@@ -23,8 +23,6 @@ config:
     url: https://idm.prod.bip.va.gov/ipa/ui/
   - name: Kibana
     url: http://prod8-kibana.logging:443/status
-  - name: Vault
-    url: http://prod8-vault.vault:8200/v1/sys/health?standbyok
 
 clusterrole:
   name: bms-api
