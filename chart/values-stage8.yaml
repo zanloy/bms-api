@@ -1,0 +1,42 @@
+# Default values for bms-api.
+# I refuse to do Helm's "best" practice of using camelCase. GFY
+
+namespace: bms
+
+config:
+  urls:
+  - name: BMS UI
+    url: http://bms.bms.svc:9292/health
+  - name: Consul
+    url: http://stage8-consul.vault:8500/v1/status/leader
+  - name: Vault
+    url: http://stage8-vault.vault:8200/v1/sys/health?standbyok=true
+  - name: dex
+    url: http://dex.auth:5556/healthz
+  - name: ElasticSearch
+    url: http://stage8-elasticsearch-client.logging:9200/_cluster/health
+    type: json
+    jsonpath: status
+    regexp: green
+  - name: Grafana
+    url: http://stage8-grafana.monitoring/api/health
+  - name: IDM
+    url: https://idm.dev.bip.va.gov/ipa/ui/
+  - name: Kibana
+    url: http://stage8-kibana.logging:443/status
+
+clusterrole:
+  name: bms-api
+
+ingress:
+  enabled: true
+  host: bms-api.stage8.bip.va.gov
+  tls:
+    enabled: true
+    secretname: bms-api-tls
+
+nexus: container-registry.prod8.bip.va.gov
+
+serviceaccount:
+  name: bms-api
+  annotations: {}
