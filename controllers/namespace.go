@@ -5,53 +5,40 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/zanloy/bms-api/kubernetes"
-	"github.com/zanloy/bms-api/models"
-	"github.com/zanloy/bms-api/wsrouter"
-	"k8s.io/apimachinery/pkg/labels"
 )
 
 type NamespaceController struct{}
 
-func (ctl *NamespaceController) GetAllHealth(ctx *gin.Context) {
-	namespaces, err := kubernetes.Namespaces().List(labels.Everything())
-	if err != nil {
+func (ctl *NamespaceController) GetNamespace(ctx *gin.Context) {
+	if ns, err := kubernetes.GetNamespace(ctx.Param("name")); err == nil {
+		ctx.JSON(http.StatusOK, ns)
+	} else {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err})
+	}
+}
+
+func (ctl *NamespaceController) GetNamespaces(ctx *gin.Context) {
+	if results, err := kubernetes.GetNamespaces(); err == nil {
+		ctx.JSON(http.StatusOK, results)
+	} else {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err})
-		return
 	}
-
-	var ( // Setup vars for loop to keep memory allocation down.
-		ns     models.Namespace
-		report models.HealthReport
-	)
-
-	results := make([]models.Namespace, len(namespaces))
-	for idx, namespace := range namespaces {
-		ns = models.FromK8Namespace(namespace)
-		report = models.HealthReportForNamespace(*namespace, kubernetes.Factory)
-		ns.Healthy = report.Healthy
-		ns.Errors = report.Errors
-		results[idx] = ns
-	}
-
-	ctx.JSON(http.StatusOK, results)
 }
 
-func (ctl *NamespaceController) GetNS(ctx *gin.Context) {
-	namespace, err := kubernetes.Namespaces().Get(ctx.Param("name"))
-	if err != nil {
-		ctx.JSON(500, gin.H{"error": err})
-		return
-	}
-
-	ns := models.FromK8Namespace(namespace)
-	report := models.HealthReportForNamespace(*namespace, kubernetes.Factory)
-	ns.Healthy = report.Healthy
-	ns.Errors = report.Errors
-
-	ctx.JSON(200, ns)
+func (ctl *NamespaceController) WatchNamespace(ctx *gin.Context) {
+	namespace := ctx.Param("name")
+	kubernetes.HealthUpdates.HandleRequestWithKeys(ctx.Writer, ctx.Request, map[string]interface{}{"namespace": namespace})
 }
 
-func (ctl *NamespaceController) WatchHealth(ctx *gin.Context) {
-	//kubernetes.HealthUpdates.HandleRequestWithKeys(ctx.Writer, ctx.Request, map[string]interface{}{"kind": "namespace"})
-	wsrouter.HandleRequest("namespace", ctx.Writer, ctx.Request)
+func (ctl *NamespaceController) WatchNamespaces(ctx *gin.Context) {
+	kubernetes.HealthUpdates.HandleRequestWithKeys(ctx.Writer, ctx.Request, map[string]interface{}{"kind": "namespace"})
+	//wsrouter.HandleRequest("namespace", ctx.Writer, ctx.Request)
+}
+
+func (ctl *NamespaceController) GetPods(ctx *gin.Context) {
+	if pods, err := kubernetes.GetPods(ctx.Param("name")); err == nil {
+		ctx.JSON(http.StatusOK, pods)
+	} else {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err})
+	}
 }

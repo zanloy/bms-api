@@ -3,66 +3,36 @@ package controllers
 import (
 	"net/http"
 
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/labels"
-
 	"github.com/gin-gonic/gin"
 	"github.com/zanloy/bms-api/kubernetes"
-	"github.com/zanloy/bms-api/models"
 )
-
-type PodWithReport struct {
-	corev1.Pod
-	Health models.HealthReport `json:"health"`
-}
 
 type PodController struct{}
 
-func (ctl *PodController) GetAllHealth(ctx *gin.Context) {
-	// Get all Pods
-	results, err := kubernetes.Pods("").List(labels.Everything())
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"error": err,
-		})
-		logger.Err(err)
-		return
-	}
-
-	pods := make([]models.HealthReport, len(results))
-	for idx, pod := range results {
-		pods[idx], _ = models.HealthReportFor(pod, kubernetes.Factory)
-	}
-
-	ctx.JSON(http.StatusOK, pods)
+type podParams struct {
+	Name      string `form:"name" json:"name" binding:"required"`
+	Namespace string `form:"namespace" json:"namespace" binding:"required"`
 }
 
-func (ctl *PodController) GetSingle(ctx *gin.Context) {
-	name := ctx.Param("name")
-	namespace := ctx.Param("ns")
-
-	if name == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"errors": "name param can not be nil.",
-		})
+func (ctl *PodController) GetPod(ctx *gin.Context) {
+	var podparams podParams
+	if err := ctx.ShouldBindJSON(&podparams); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	pod, err := kubernetes.Pods(namespace).Get(name)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"errors": err.Error(),
-		})
+	if pod, err := kubernetes.GetPod(podparams.Namespace, podparams.Name); err != nil {
+		ctx.JSON(http.StatusOK, pod)
+	} else {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
+}
 
-	report := models.HealthReportForPod(*pod)
-	result := PodWithReport{
-		Pod:    *pod,
-		Health: report,
+func (ctl *PodController) GetPods(ctx *gin.Context) {
+	if pods, err := kubernetes.GetPods(""); err == nil {
+		ctx.JSON(http.StatusOK, pods)
+	} else {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err})
 	}
-
-	// Celebrate!
-	ctx.JSON(http.StatusOK, result)
 }
 
 func (ctl *PodController) WatchHealth(ctx *gin.Context) {

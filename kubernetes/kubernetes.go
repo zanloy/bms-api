@@ -1,7 +1,6 @@
 package kubernetes // import github.com/zanloy/bms-api/kubernetes
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,10 +8,8 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	veleroclient "github.com/vmware-tanzu/velero/pkg/client"
+	"github.com/zanloy/bms-api/helpers"
 	"gopkg.in/olahol/melody.v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	ogkubernetes "k8s.io/client-go/kubernetes"
@@ -42,15 +39,6 @@ var (
 	tenants       = map[string][]string{} // Key is tenant name, value is envs
 )
 
-func FileExists(filename string) bool {
-	filename = os.ExpandEnv(filename)
-	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return !info.IsDir()
-}
-
 func Init(kubeconfig string) (err error) {
 	// Setup logger
 	logger = log.With().
@@ -69,7 +57,7 @@ func Init(kubeconfig string) (err error) {
 		}
 	}
 
-	if FileExists(kubeconfig) {
+	if helpers.FileExists(kubeconfig) {
 		logger.Debug().Msg(fmt.Sprintf("Found kubeconfig at %s, attempting to load it.", kubeconfig))
 		Config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err != nil {
@@ -103,15 +91,13 @@ func Start(stopChannel <-chan struct{}) {
 	/* Setup cache and informers */
 	Factory = informers.NewSharedInformerFactory(Clientset, time.Minute*5)
 	setupInformers()
-	go Factory.Start(stopCh)
+	Factory.Start(stopCh)
 
 	// TODO: Add a timeout to this.
-	/* Wait for cache to sync */
-	logger.Info().Msg("Waiting for cache to sync...")
+	logger.Info().Msg("Waiting for informer cache to sync...")
 	startTime := time.Now()
-	result := Factory.WaitForCacheSync(stopCh)
-	fmt.Printf("result = %+v\n", result)
-	logger.Info().Msg(fmt.Sprintf("Cache sync completed [%.2fs].", time.Since(startTime).Seconds()))
+	Factory.WaitForCacheSync(stopCh)
+	logger.Info().Msg(fmt.Sprintf("Informer cache sync completed [%.2fs].", time.Since(startTime).Seconds()))
 
 	logger.Info().Msg("Kubernetes controller startup complete.")
 }
@@ -144,57 +130,5 @@ func NamespacesArray() (namespaces []string, err error) {
 	for idx, ns := range cached {
 		namespaces[idx] = ns.Name
 	}
-	return
-}
-
-func VeleroBackups() (backups *velerov1.BackupList, err error) {
-	backups = &velerov1.BackupList{}
-
-	// Load Velero config (default: ~/.config/velero/config.json)
-	veleroConfig, err := veleroclient.LoadConfig()
-
-	// Use the Velero factory to build our velero objs.
-	// TODO: Analyze if this could be used for the entire package since it builds for k8 and velero
-	f := veleroclient.NewFactory("get", veleroConfig)
-
-	// Create veleroClient
-	veleroClient, err := f.Client()
-	if err != nil {
-		return
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Get backups
-	backups, err = veleroClient.VeleroV1().Backups(f.Namespace()).List(ctx, metav1.ListOptions{})
-
-	// Return our results/error
-	return
-}
-
-func VeleroSchedules() (schedules *velerov1.ScheduleList, err error) {
-	schedules = &velerov1.ScheduleList{}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Load Velero config (default: ~/.config/velero/config.json)
-	veleroConfig, err := veleroclient.LoadConfig()
-
-	// Use the Velero factory to build our velero objs.
-	// TODO: Analyze if this could be used for the entire package since it builds for k8 and velero
-	f := veleroclient.NewFactory("get", veleroConfig)
-
-	// Create veleroClient
-	veleroClient, err := f.Client()
-	if err != nil {
-		return
-	}
-
-	// Get schedules
-	schedules, err = veleroClient.VeleroV1().Schedules(f.Namespace()).List(ctx, metav1.ListOptions{})
-
-	// Return our results/error
 	return
 }

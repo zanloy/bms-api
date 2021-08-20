@@ -1,0 +1,224 @@
+package kubernetes // import "github.com/zanloy/bms-api/kubernetes"
+
+import (
+	"context"
+	"errors"
+	"regexp"
+
+	"github.com/zanloy/bms-api/models"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+)
+
+// This file contains the funcs to convert k8 resources to bms-api models.
+
+func GetDaemonSets(namespace string) ([]models.DaemonSet, error) {
+	results := make([]models.DaemonSet, 0)
+	daemonsets, err := DaemonSets(namespace).List(labels.Everything())
+	if err != nil {
+		return results, err
+	}
+	for _, daemonset := range daemonsets {
+		results = append(results, models.NewDaemonSet(daemonset, true))
+	}
+	return results, nil
+}
+
+func GetDeployments(namespace string) ([]models.Deployment, error) {
+	results := make([]models.Deployment, 0)
+	deployments, err := Deployments(namespace).List(labels.Everything())
+	if err != nil {
+		return results, err
+	}
+	for _, deployment := range deployments {
+		results = append(results, models.NewDeployment(deployment, true))
+	}
+	return results, nil
+}
+
+func GetNamespace(name string) (models.Namespace, error) {
+	namespace, err := Namespaces().Get(name)
+	if err != nil {
+		return models.Namespace{}, err
+	}
+
+	ns := models.NewNamespace(namespace)
+
+	ns.DaemonSets, _ = GetDaemonSets(ns.Name)
+	ns.Deployments, _ = GetDeployments(ns.Name)
+	ns.Pods, _ = GetPods(ns.Name)
+	ns.Services, _ = GetServices(ns.Name)
+	ns.StatefulSets, _ = GetStatefulSets(ns.Name)
+
+	schedules, _ := GetVeleroSchedules(ns.Name)
+	backups, _ := GetVeleroBackups(ns.Name)
+	ns.Velero = models.NSVelero{
+		Schedules: schedules,
+		Backups:   backups,
+	}
+
+	// TODO: Get bms configmap
+	// Setup values from config
+
+	ns.CheckHealth()
+	return ns, nil
+}
+
+func GetNamespaces() ([]models.Namespace, []error) {
+	results := make([]models.Namespace, 0)
+	errs := make([]error, 0)
+	if namespaces, err := Namespaces().List(labels.Everything()); err != nil {
+		for _, namespace := range namespaces {
+			if ns, err := GetNamespace(namespace.Name); err == nil {
+				results = append(results, ns)
+			} else {
+				errs = append(errs, err)
+			}
+		}
+	} else {
+		errs = append(errs, err)
+	}
+	return results, errs
+}
+
+func GetNode(name string) (models.Node, error) {
+	if result, err := Nodes().Get(name); err == nil {
+		return models.NewNode(result, true), nil
+	} else {
+		return models.Node{}, err
+	}
+}
+
+func GetNodes() ([]models.Node, error) {
+	results := make([]models.Node, 0)
+	nodes, err := Nodes().List(labels.Everything())
+	if err != nil {
+		return results, err
+	}
+	for _, node := range nodes {
+		results = append(results, models.NewNode(node, true))
+	}
+	return results, nil
+}
+
+func GetPod(namespace string, name string) (models.Pod, error) {
+	if pod, err := Pods(namespace).Get(name); err == nil {
+		return models.NewPod(pod, true), nil
+	} else {
+		return models.Pod{}, err
+	}
+}
+
+func GetPods(namespace string) ([]models.Pod, error) {
+	return GetPodsBySelector(namespace, labels.Everything())
+}
+
+func GetPodsBySelector(namespace string, selector labels.Selector) ([]models.Pod, error) {
+	results := make([]models.Pod, 0)
+	var pods []*corev1.Pod
+	var err error
+	if namespace == "" {
+		pods, err = Core().Pods().Lister().List(selector)
+	} else {
+		pods, err = Pods(namespace).List(selector)
+	}
+	if err != nil {
+		return results, err
+	}
+	for _, pod := range pods {
+		results = append(results, models.NewPod(pod, true))
+	}
+	return results, nil
+}
+
+func GetServices(namespace string) ([]models.Service, error) {
+	results := make([]models.Service, 0)
+	services, err := Services(namespace).List(labels.Everything())
+	if err != nil {
+		return results, err
+	}
+	for _, service := range services {
+		selector := labels.SelectorFromSet(labels.Set(service.Spec.Selector))
+		pods, err := GetPodsBySelector(namespace, selector)
+		if err != nil {
+			return results, err
+		}
+		svc := models.NewServiceWithPods(service, pods, true)
+		results = append(results, svc)
+	}
+	return results, nil
+}
+
+func GetStatefulSets(namespace string) ([]models.StatefulSet, error) {
+	results := make([]models.StatefulSet, 0)
+	statefulsets, err := StatefulSets(namespace).List(labels.Everything())
+	if err != nil {
+		return results, err
+	}
+	for _, ss := range statefulsets {
+		results = append(results, models.NewStatefulSet(ss, true))
+	}
+	return results, nil
+}
+
+func GetVeleroBackups(filter string) ([]models.VeleroBackup, error) {
+	results := make([]models.VeleroBackup, 0)
+	if filter == "" {
+		filter = ".*"
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Get backups
+	if client := VeleroV1(); client != nil {
+		if backups, err := client.Backups("velero").List(ctx, metav1.ListOptions{}); err == nil {
+			for _, backup := range backups.Items {
+				for _, ns := range backup.Spec.IncludedNamespaces {
+					// TODO: Actually handle or log the error
+					if ok, _ := regexp.Match(filter, []byte(ns)); ok {
+						results = append(results, models.NewVeleroBackup(backup, true))
+					}
+				}
+			}
+		} else {
+			return results, err
+		}
+	} else {
+		return results, errors.New("failed to create Velero client")
+	}
+
+	return results, nil
+}
+
+func GetVeleroSchedules(filter string) ([]models.VeleroSchedule, error) {
+	results := make([]models.VeleroSchedule, 0)
+	if filter == "" {
+		filter = ".*"
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Get backups
+	if client := VeleroV1(); client != nil {
+		if schedules, err := client.Schedules("velero").List(ctx, metav1.ListOptions{}); err == nil {
+			for _, schedule := range schedules.Items {
+				for _, ns := range schedule.Spec.Template.IncludedNamespaces {
+					// TODO: Actually handle or log the error
+					if ok, _ := regexp.Match(filter, []byte(ns)); ok {
+						results = append(results, models.NewVeleroSchedule(schedule, true))
+					}
+				}
+			}
+		} else {
+			return results, err
+		}
+	} else {
+		return results, errors.New("failed to create Velero client")
+	}
+
+	return results, nil
+}

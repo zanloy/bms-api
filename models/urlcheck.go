@@ -89,7 +89,6 @@ func (uc *URLCheck) checkHTTPBody(resp *resty.Response) {
 	case StatusUnhealthy:
 		uc.Text = "unhealthy"
 	}
-	return
 }
 
 // CheckHTTPStatus is the default validator. It will use sane defaults saying
@@ -146,7 +145,7 @@ func (uc *URLCheck) checkJSON(resp *resty.Response) {
 	case string:
 		val = typed
 	case bool:
-		if typed == true {
+		if typed {
 			val = "true"
 		} else {
 			val = "false"

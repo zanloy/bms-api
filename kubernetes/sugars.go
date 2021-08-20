@@ -3,6 +3,8 @@ package kubernetes // import github.com/zanloy/bms-api/kubernetes
 //This file contains all the syntactical sugars for the kubernetes package.
 
 import (
+	veleroclient "github.com/vmware-tanzu/velero/pkg/client"
+	velerov1 "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned/typed/velero/v1"
 	informersappsv1 "k8s.io/client-go/informers/apps/v1"
 	informersv1 "k8s.io/client-go/informers/core/v1"
 	informersv1beta1 "k8s.io/client-go/informers/extensions/v1beta1"
@@ -69,4 +71,20 @@ func Services(namespace string) listersv1.ServiceNamespaceLister {
 func StatefulSets(namespace string) listersappsv1.StatefulSetNamespaceLister {
 	mustBeInitialized()
 	return Apps().StatefulSets().Lister().StatefulSets(namespace)
+}
+
+func VeleroV1() velerov1.VeleroV1Interface {
+	// Load Velero config (default: ~/.config/velero/config.json)
+	veleroConfig, err := veleroclient.LoadConfig()
+	if err != nil {
+		return nil
+	}
+
+	factory := veleroclient.NewFactory("get", veleroConfig)
+	veleroClient, err := factory.Client()
+	if err != nil {
+		return nil
+	}
+
+	return veleroClient.VeleroV1()
 }

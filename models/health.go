@@ -14,6 +14,7 @@ const (
 	HealthUnknown HealthColor = "unknown"
 )
 
+// TODO: Validate whether this is used anymore or not.
 type Health struct {
 	Timestamp int64       `json:"timestamp,omitempty"`
 	Error     string      `json:"error,omitempty"`
@@ -31,15 +32,15 @@ type HealthUpdate struct {
 	Healthy         HealthyStatus `json:"healthy"`
 	PreviousHealthy HealthyStatus `json:"previous_healthy,omitempty"`
 	Errors          []string      `json:"errors,omitempty"`
+	Warnings        []string      `json:"warnings,omitempty"`
 }
 
 func (hu *HealthUpdate) ToMsg() []byte {
 	hu.Timestamp = time.Now().Unix()
 
-	bytes, err := json.Marshal(hu)
-	if err != nil {
+	if bytes, err := json.Marshal(hu); err == nil {
+		return bytes
+	} else {
 		return []byte{}
 	}
-
-	return bytes
 }

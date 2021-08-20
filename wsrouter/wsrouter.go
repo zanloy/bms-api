@@ -33,8 +33,8 @@ func init() {
 var filters = map[string][]string{}
 
 func HandleRequest(kind string, w http.ResponseWriter, r *http.Request) error {
-	if hasOutbox(kind) == false {
-		return fmt.Errorf("There is no outbox in wsrouter for %s.", kind)
+	if !hasOutbox(kind) {
+		return fmt.Errorf("there is no outbox in wsrouter for %s", kind)
 	}
 	box := outboxes[kind]
 	return box.HandleRequest(w, r)
@@ -62,7 +62,7 @@ func LoadFilters(input []models.Filter) {
 	}
 
 	// Sort our arrays for easy binary searching later
-	for key, _ := range filters {
+	for key := range filters {
 		sort.Strings(filters[key])
 	}
 }
@@ -83,14 +83,14 @@ func Broadcast(update models.HealthUpdate) error {
 	if outbox, ok := outboxes[update.Kind]; ok {
 		outbox.Broadcast(update.ToMsg())
 	} else {
-		return fmt.Errorf("There was no outbox with kind [%s] found.", update.Kind)
+		return fmt.Errorf("there was no outbox with kind [%s] found", update.Kind)
 	}
 
 	return nil
 }
 
 func hasOutbox(name string) bool {
-	for key, _ := range outboxes {
+	for key := range outboxes {
 		if key == name {
 			return true
 		}

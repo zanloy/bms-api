@@ -25,7 +25,7 @@ func (t *Tenant) AddEnv(env string) {
 func (t *Tenant) DeleteEnv(env string) error {
 	idx := t.findEnv(env)
 	if idx == -1 {
-		return fmt.Errorf("The tenant [%s] does not have the environment [%s].", t.Name, env)
+		return fmt.Errorf("the tenant [%s] does not have the environment [%s]", t.Name, env)
 	}
 	t.Envs[idx] = t.Envs[len(t.Envs)-1] // Copy last element to "deleted" one
 	t.Envs = t.Envs[:len(t.Envs)-1]     // Chop last element off slice

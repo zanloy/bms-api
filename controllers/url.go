@@ -8,11 +8,11 @@ import (
 
 type URLController struct{}
 
-func (ctl *URLController) GetAll(ctx *gin.Context) {
+func (ctl *URLController) GetURLs(ctx *gin.Context) {
 	results := url.GetResults()
 	ctx.JSON(200, results)
 }
 
-func (ctl *URLController) WatchHealth(ctx *gin.Context) {
+func (ctl *URLController) WatchURLs(ctx *gin.Context) {
 	kubernetes.HealthUpdates.HandleRequestWithKeys(ctx.Writer, ctx.Request, map[string]interface{}{"kind": "url"})
 }

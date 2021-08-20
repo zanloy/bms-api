@@ -1,35 +1,40 @@
 package helpers
 
 import (
-	"k8s.io/api/core/v1"
+	"os"
+	"sort"
+	"strings"
 )
 
-// PodIsHealthy will return whether the Pod object is in a "healthy" state.
-// A pod is considered healthy if:
-//   * The Ready condition is True
-//   * The Ready condition is False but reason is 'PodCompleted'
-func PodIsHealthy(pod v1.Pod) bool {
-	for _, condition := range pod.Status.Conditions {
-		if condition.Type == v1.PodReady {
-			if condition.Status == v1.ConditionTrue {
-				return true
-			} else {
-				if condition.Reason == "PodCompleted" {
-					return true
-				}
-			}
-		}
+func FileExists(filename string) bool {
+	filename = os.ExpandEnv(filename)
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
 	}
-	return false
+	return !info.IsDir()
 }
 
-// PodsAreHealthy takes a PodList and validates the health of each pod. It will
-// return true only if all the pods are considered healthy.
-func PodsAreHealthy(podlist v1.PodList) bool {
-	for _, pod := range podlist.Items {
-		if PodIsHealthy(pod) == false {
-			return false
+func ParseTenantAndEnv(name string) (string, string) {
+	tenant := "platform"
+	env := ""
+
+	// See if we can set Tenant/Env from Name
+	if strings.Contains(name, "-") {
+		parts := strings.Split(name, "-")
+		switch last := parts[len(parts)-1]; last {
+		case "cola", "demo", "dev", "int", "ivv", "pat", "pdt", "perf", "preprod", "prod", "prodtest", "sqa", "test", "uat":
+			env = last
+			tenant = strings.Join(parts[:len(parts)-1], "-")
 		}
 	}
-	return true
+
+	return tenant, env
+}
+
+func StringInSlice(slice []string, target string) bool {
+	// The strings need to be sorted to do a binary search
+	sort.Strings(slice)
+	i := sort.Search(len(slice), func(i int) bool { return slice[i] >= target })
+	return i < len(slice) && slice[i] == target
 }

@@ -6,15 +6,16 @@ namespace: bms
 config:
   urls:
   - name: BMS UI
-    url: http://bms.bms.svc:5000/health
+    url: http://bms.bms.svc:9292/health
   - name: Consul
-    url: https://prod8-consul.vault:8500/v1/status/leader
+    url: http://prod8-consul.vault:8500/v1/status/leader
   - name: Vault
     url: http://prod8-vault.vault:8200/v1/sys/health?standbyok=true
   - name: dex
     url: http://dex.auth:5556/healthz
   - name: ElasticSearch
     url: http://prod8-elasticsearch-client.logging:9200/_cluster/health
+    type: json
     jsonpath: status
     regexp: green
   - name: Grafana

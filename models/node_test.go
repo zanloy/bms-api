@@ -9,7 +9,7 @@ import (
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 
 	"github.com/stretchr/testify/assert"
-	. "github.com/zanloy/bms-api/models"
+	"github.com/zanloy/bms-api/models"
 )
 
 var (
@@ -45,37 +45,61 @@ var (
 	}
 )
 
-func TestFromK8Node(t *testing.T) {
+type comparableNode struct {
+	Name           string
+	Healthy        models.HealthyStatus
+	Errors         []string
+	Warnings       []string
+	Conditions     []string
+	KernelVersion  string
+	KubeletVersion string
+	CPU            models.ResourceQuantities
+	Memory         models.ResourceQuantities
+}
+
+func genComparable(input models.Node) comparableNode {
+	return comparableNode{
+		Name:           input.Name,
+		Healthy:        input.Healthy,
+		Errors:         input.Errors,
+		Warnings:       input.Warnings,
+		Conditions:     input.Conditions,
+		KernelVersion:  input.KernelVersion,
+		KubeletVersion: input.KubeletVersion,
+		CPU:            input.CPU,
+		Memory:         input.Memory,
+	}
+}
+
+func TestNewNode(t *testing.T) {
 	testCases := []struct {
 		desc     string
 		input    corev1.Node
-		expected Node
+		expected models.Node
 	}{{
 		desc:  "with a healthy node",
 		input: healthyNode,
-		expected: Node{
+		expected: models.Node{
 			Name:           "healthy-node",
-			Healthy:        StatusHealthy,
+			Healthy:        models.StatusHealthy,
+			Errors:         []string{},
+			Warnings:       []string{},
 			Conditions:     []string{"Ready"},
 			KernelVersion:  "1",
 			KubeletVersion: "1",
-			CPU: ResourceQuantities{
-				Allocatable: *resource.NewQuantity(8, resource.DecimalSI),
-			},
-			Memory: ResourceQuantities{
-				Allocatable: *resource.NewQuantity(16, resource.BinarySI),
-			},
+			CPU:            models.ResourceQuantities{Allocatable: *resource.NewQuantity(8, resource.DecimalSI)},
+			Memory:         models.ResourceQuantities{Allocatable: *resource.NewQuantity(16, resource.BinarySI)},
 		},
 	}}
 
 	for _, testCase := range testCases {
-		result := FromK8Node(testCase.input)
-		assert.Equal(t, testCase.expected, result, testCase.desc)
+		result := models.NewNode(&testCase.input, true)
+		assert.Equal(t, genComparable(testCase.expected), genComparable(result), testCase.desc)
 	}
 }
 
 func TestAddMetrics(t *testing.T) {
-	node := FromK8Node(healthyNode)
+	node := models.NewNode(&healthyNode, true)
 	node.AddMetrics(metrics1m1Mi)
 	assert.Equal(t, "1", node.CPU.Utilized.String())
 	assert.Equal(t, "1Mi", node.Memory.Utilized.String())
