@@ -3,8 +3,6 @@ package models
 import (
 	"fmt"
 	"time"
-
-	"github.com/zanloy/bms-api/helpers"
 )
 
 type HealthyStatus string
@@ -17,57 +15,30 @@ const (
 	StatusWarn      HealthyStatus = "Warn"
 )
 
+type HealthReportInterface interface {
+	AddError(string)
+	AddErrors([]string, string)
+	AddWarning(string)
+	AddWarnings([]string, string)
+	AddAlert(string)
+	AddAlerts([]string, string)
+}
+
 type HealthReport struct {
-	Timestamp   int64         `json:"timestamp"`
-	Action      string        `json:"action,omitempty"`
-	Kind        string        `json:"kind"`
-	Namespace   string        `json:"namespace,omitempty"`
-	Name        string        `json:"name"`
-	Tenant      string        `json:"tenant,omitempty"`
-	Environment string        `json:"environment,omitempty"`
-	Healthy     HealthyStatus `json:"healthy"`
-	Text        string        `json:"text,omitempty"`
-	Errors      []string      `json:"errors,omitempty"`
-	Warnings    []string      `json:"warnings,omitempty"`
+	Timestamp int64         `json:"timestamp"`
+	Healthy   HealthyStatus `json:"healthy"`
+	Errors    []string      `json:"errors,omitempty"`
+	Warnings  []string      `json:"warnings,omitempty"`
+	Alerts    []string      `json:"alerts,omitempty"`
 }
 
 func NewHealthReport() HealthReport {
 	return HealthReport{
 		Timestamp: time.Now().Unix(),
 		Healthy:   StatusUnknown,
-	}
-}
-
-func NewHealthReportFor(kind string, name string, namespace string) HealthReport {
-	tenant, env := helpers.ParseTenantAndEnv(namespace)
-	return HealthReport{
-		Timestamp:   time.Now().Unix(),
-		Action:      "",
-		Kind:        kind,
-		Namespace:   namespace,
-		Name:        name,
-		Tenant:      tenant,
-		Environment: env,
-		Healthy:     StatusUnknown,
-		Text:        "",
-		Errors:      []string{},
-		Warnings:    []string{},
-	}
-}
-
-func (hr *HealthReport) AddWarning(msg string) {
-	if hr.Healthy != StatusUnhealthy {
-		hr.Healthy = StatusWarn
-	}
-	hr.Warnings = append(hr.Warnings, msg)
-}
-
-func (hr *HealthReport) AddWarnings(msgs []string, prefix string) {
-	if prefix != "" {
-		prefix = fmt.Sprintf("%s: ", prefix)
-	}
-	for msg := range msgs {
-		hr.AddWarning(fmt.Sprintf("%v%v", prefix, msg))
+		Errors:    make([]string, 0),
+		Warnings:  make([]string, 0),
+		Alerts:    make([]string, 0),
 	}
 }
 
@@ -82,6 +53,35 @@ func (hr *HealthReport) AddErrors(msgs []string, prefix string) {
 	}
 	for _, msg := range msgs {
 		hr.AddError(fmt.Sprintf("%s%s", prefix, msg))
+	}
+}
+
+func (hr *HealthReport) AddWarning(msg string) {
+	if hr.Healthy != StatusUnhealthy {
+		hr.Healthy = StatusWarn
+	}
+	hr.Warnings = append(hr.Warnings, msg)
+}
+
+func (hr *HealthReport) AddWarnings(msgs []string, prefix string) {
+	if prefix != "" {
+		prefix = fmt.Sprintf("%s: ", prefix)
+	}
+	for _, msg := range msgs {
+		hr.AddWarning(fmt.Sprintf("%s%s", prefix, msg))
+	}
+}
+
+func (hr *HealthReport) AddAlert(msg string) {
+	hr.Alerts = append(hr.Alerts, msg)
+}
+
+func (hr *HealthReport) AddAlerts(msgs []string, prefix string) {
+	if prefix != "" {
+		prefix = fmt.Sprintf("%s: ", prefix)
+	}
+	for _, msg := range msgs {
+		hr.AddAlert(fmt.Sprintf("%s%s", prefix, msg))
 	}
 }
 

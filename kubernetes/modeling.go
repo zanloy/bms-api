@@ -54,7 +54,7 @@ func GetNamespace(name string) (models.Namespace, error) {
 
 	schedules, _ := GetVeleroSchedules(ns.Name)
 	backups, _ := GetVeleroBackups(ns.Name)
-	ns.Velero = models.NSVelero{
+	ns.Velero = models.NamespaceVeleroInfo{
 		Schedules: schedules,
 		Backups:   backups,
 	}

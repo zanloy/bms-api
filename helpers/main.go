@@ -3,7 +3,6 @@ package helpers
 import (
 	"os"
 	"sort"
-	"strings"
 )
 
 func FileExists(filename string) bool {
@@ -13,23 +12,6 @@ func FileExists(filename string) bool {
 		return false
 	}
 	return !info.IsDir()
-}
-
-func ParseTenantAndEnv(name string) (string, string) {
-	tenant := "platform"
-	env := ""
-
-	// See if we can set Tenant/Env from Name
-	if strings.Contains(name, "-") {
-		parts := strings.Split(name, "-")
-		switch last := parts[len(parts)-1]; last {
-		case "cola", "demo", "dev", "int", "ivv", "pat", "pdt", "perf", "preprod", "prod", "prodtest", "sqa", "test", "uat":
-			env = last
-			tenant = strings.Join(parts[:len(parts)-1], "-")
-		}
-	}
-
-	return tenant, env
 }
 
 func StringInSlice(slice []string, target string) bool {

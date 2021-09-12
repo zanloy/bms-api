@@ -3,22 +3,15 @@ package models
 import (
 	"fmt"
 
-	"github.com/zanloy/bms-api/helpers"
-
 	corev1 "k8s.io/api/core/v1"
 )
 
 type Service struct {
-	Name         string          `json:"name"`
-	Namespace    string          `json:"namespace"`
-	Tenant       string          `json:"tenant,omitempty"`
-	Environment  string          `json:"environment,omitempty"`
-	HealthReport HealthReport    `json:"-"`
-	Healthy      HealthyStatus   `json:"healthy"`
-	Errors       []string        `json:"errors,omitempty"`
-	Warnings     []string        `json:"warnings,omitempty"`
-	raw          *corev1.Service `json:"-"`
-	Pods         []Pod           `json:"pods,omitempty"`
+	corev1.Service `json:",inline"`
+	TenantInfo     `json:"tenant"`
+	HealthReport   `json:"health"`
+
+	Pods []Pod `json:"pods"`
 }
 
 func NewService(raw *corev1.Service, checkHealth bool) Service {
@@ -26,38 +19,28 @@ func NewService(raw *corev1.Service, checkHealth bool) Service {
 }
 
 func NewServiceWithPods(raw *corev1.Service, pods []Pod, checkHealth bool) Service {
-	tenant, env := helpers.ParseTenantAndEnv(raw.Namespace)
 	service := Service{
-		Name:         raw.Name,
-		Namespace:    raw.Namespace,
-		Tenant:       tenant,
-		Environment:  env,
+		Service:      *raw,
+		TenantInfo:   ParseTenant(raw.Namespace),
 		HealthReport: HealthReport{},
-		Healthy:      StatusUnknown,
-		Errors:       []string{},
-		Warnings:     []string{},
-		raw:          raw,
 		Pods:         pods,
 	}
+
 	if checkHealth {
 		service.CheckHealth()
 	}
+
 	return service
 }
 
 func (s *Service) CheckHealth() {
 	//   - A service is considered unhealthy if no pods are handling requests
 	report := NewHealthReport()
-	report.Kind = "Service"
-	report.Namespace = s.Namespace
-	report.Name = s.Name
-	report.Tenant = s.Tenant
-	report.Environment = s.Environment
 
 	var total, healthy int
 	for _, pod := range s.Pods {
 		total++
-		if pod.Healthy == StatusHealthy {
+		if pod.HealthReport.Healthy == StatusHealthy {
 			healthy++
 		}
 	}
@@ -69,9 +52,8 @@ func (s *Service) CheckHealth() {
 		}
 	}
 
+	// If nobody said we're unhealthy, that must mean we are health, right?
 	report.FailHealthy()
-	s.Healthy = report.Healthy
-	s.Errors = report.Errors
-	s.Warnings = report.Warnings
+
 	s.HealthReport = report
 }

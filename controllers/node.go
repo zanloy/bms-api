@@ -28,6 +28,10 @@ func (ctl *NodeController) GetNodes(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, nodes)
 }
 
-func (ctl *NodeController) WatchHealth(ctx *gin.Context) {
+func (ctl *NodeController) WatchNode(ctx *gin.Context) {
+	kubernetes.HealthUpdates.HandleRequestWithKeys(ctx.Writer, ctx.Request, map[string]interface{}{"kind": "node", "name": ctx.Param("name")})
+}
+
+func (ctl *NodeController) WatchNodes(ctx *gin.Context) {
 	kubernetes.HealthUpdates.HandleRequestWithKeys(ctx.Writer, ctx.Request, map[string]interface{}{"kind": "node"})
 }

@@ -6,6 +6,9 @@ import (
 	"github.com/zanloy/bms-api/models"
 
 	"gopkg.in/olahol/melody.v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -85,20 +88,44 @@ func filterURL(s *melody.Session) bool {
 	return filterKind(s, "url")
 }
 
+func FilterFor(obj interface{}) filterFunc {
+	switch obj.(type) {
+	case *extensionsv1beta1.DaemonSet:
+		return filterDaemonSet
+	case *extensionsv1beta1.Deployment:
+		return filterDeployment
+	case *corev1.Namespace:
+		return filterNamespace
+	case *corev1.Node:
+		return filterNode
+	case *corev1.Pod:
+		return filterPod
+	case *appsv1.StatefulSet:
+		return filterStatefulSet
+	case models.URLCheck:
+		return filterURL
+	default:
+		return func(s *melody.Session) bool { return false } //filterAllowAll
+	}
+}
+
 func broadcastNamespaceHealth(name string) {
 	if name != "" {
 		// Check is cache is synced
-		cache.WaitForCacheSync(stopCh, Factory.Core().V1().Namespaces().Informer().HasSynced)
+		// TODO: Move this to a function to call from anywhere in this package
+		//cache.WaitForCacheSync(stopCh, Factory.Core().V1().Namespaces().Informer().HasSynced)
 
 		if ns, err := GetNamespace(name); err == nil {
-			report := ns.HealthReport
 			update := models.HealthUpdate{
-				Action:  "refresh",
-				Kind:    "namespace",
-				Name:    ns.Name,
-				Healthy: report.Healthy,
-				Errors:  report.Errors,
+				TypeMeta:             ns.Namespace.TypeMeta,
+				Kind:                 ns.Kind,
+				Name:                 ns.Name,
+				Namespace:            ns.Namespace.Namespace,
+				HealthReport:         ns.HealthReport,
+				Action:               "update",
+				PreviousHealthReport: nil,
 			}
+
 			HealthUpdates.BroadcastFilter(update.ToMsg(), filterNamespace)
 		}
 	}
@@ -106,95 +133,56 @@ func broadcastNamespaceHealth(name string) {
 
 func handleAdd(obj interface{}) {
 	var (
-		report models.HealthReport
-		filter filterFunc
+		update models.HealthUpdate
 		err    error
 	)
 
-	if report, err = ReportFor(obj); err != nil {
+	if update, err = HealthUpdateFor(obj, "add"); err != nil {
 		logger.Err(err)
 		return
 	}
 
-	update := models.HealthUpdate{
-		Action:    "add",
-		Kind:      report.Kind,
-		Namespace: report.Namespace,
-		Name:      report.Name,
-		Healthy:   report.Healthy,
-		Errors:    report.Errors,
-	}
-
 	//wsrouter.Broadcast(update)
 
-	//logger.Debug().Interface("object", obj).Msg("Add event occurred.")
-	//filter = FilterFor(obj)
-	HealthUpdates.BroadcastFilter(update.ToMsg(), filter)
-	broadcastNamespaceHealth(report.Namespace)
+	HealthUpdates.BroadcastFilter(update.ToMsg(), FilterFor(obj))
+	//broadcastNamespaceHealth(update.Namespace)
 }
 
 func handleUpdate(prevObj interface{}, obj interface{}) {
 	var (
-		filter             filterFunc
-		report, prevReport models.HealthReport
+		prevReport *models.HealthReport
+		update     models.HealthUpdate
 	)
 
-	prevReport, err := ReportFor(prevObj)
+	if prevUpdate, err := HealthUpdateFor(prevObj, "update"); err == nil {
+		prevReport = &prevUpdate.HealthReport
+	}
+
+	update, err := HealthUpdateFor(obj, "update")
 	if err != nil {
 		logger.Err(err)
 		return
 	}
 
-	if report, err = ReportFor(obj); err != nil {
+	update.PreviousHealthReport = prevReport
+
+	//wsrouter.Broadcast(update)
+
+	//logger.Debug().Interface("object", obj).Msg("Update event occurred.")
+	HealthUpdates.BroadcastFilter(update.ToMsg(), FilterFor(obj))
+	//broadcastNamespaceHealth(update.Namespace)
+}
+
+func handleDelete(obj interface{}) {
+	update, err := HealthUpdateFor(obj, "delete")
+	if err != nil {
 		logger.Err(err)
 		return
 	}
 
-	if report.Healthy != prevReport.Healthy {
-		update := models.HealthUpdate{
-			Action:          "update",
-			Kind:            report.Kind,
-			Namespace:       report.Namespace,
-			Name:            report.Name,
-			Healthy:         report.Healthy,
-			PreviousHealthy: prevReport.Healthy,
-			Errors:          report.Errors,
-		}
+	//wsrouter.Broadcast(update)
 
-		//wsrouter.Broadcast(update)
-
-		//logger.Debug().Interface("object", obj).Msg("Update event occurred.")
-		//filter = FilterFor(obj)
-		HealthUpdates.BroadcastFilter(update.ToMsg(), filter)
-		broadcastNamespaceHealth(report.Namespace)
-	}
-}
-
-func handleDelete(obj interface{}) {
-	var (
-		filter filterFunc
-	)
-
-	if report, err := ReportFor(obj); err == nil {
-		update := models.HealthUpdate{
-			Timestamp:       0,
-			Action:          "delete",
-			Kind:            report.Kind,
-			Namespace:       report.Namespace,
-			Name:            report.Name,
-			Healthy:         report.Healthy,
-			PreviousHealthy: models.StatusUnknown,
-			Errors:          report.Errors,
-			Warnings:        report.Warnings,
-		}
-
-		//wsrouter.Broadcast(update)
-
-		//logger.Debug().Interface("object", obj).Msg("Delete event occurred.")
-		//filter = FilterFor(obj)
-		HealthUpdates.BroadcastFilter(update.ToMsg(), filter)
-		broadcastNamespaceHealth(report.Namespace)
-	} else {
-		logger.Err(err)
-	}
+	//logger.Debug().Interface("object", obj).Msg("Delete event occurred.")
+	HealthUpdates.BroadcastFilter(update.ToMsg(), FilterFor(obj))
+	//broadcastNamespaceHealth(update.Namespace)
 }

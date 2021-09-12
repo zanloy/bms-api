@@ -4,48 +4,35 @@ import (
 	"fmt"
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type VeleroBackup struct {
-	Name               string               `json:"name"`
-	Namespace          string               `json:"namespace"`
-	HealthReport       HealthReport         `json:"-"`
-	Healthy            HealthyStatus        `json:"healthy"`
-	Errors             []string             `json:"errors,omitempty"`
-	Warnings           []string             `json:"warnings,omitempty"`
-	IncludedNamespaces []string             `json:"included_namespaces"`
-	Phase              velerov1.BackupPhase `json:"phase"`
-	CompletedAt        *metav1.Time         `json:"completed_at"`
-	raw                velerov1.Backup      `json:"-"`
+	velerov1.Backup `json:",inline"`
+	TenantInfo      `json:"tenant"`
+	HealthReport    `json:"health"`
 }
 
 func NewVeleroBackup(raw velerov1.Backup, checkHealth bool) VeleroBackup {
 	vb := VeleroBackup{
-		Name:               raw.Name,
-		Namespace:          raw.Namespace,
-		HealthReport:       HealthReport{},
-		Healthy:            StatusUnknown,
-		Errors:             []string{},
-		Warnings:           []string{},
-		IncludedNamespaces: raw.Spec.IncludedNamespaces,
-		Phase:              raw.Status.Phase,
-		CompletedAt:        raw.Status.CompletionTimestamp,
-		raw:                raw,
+		Backup:       raw,
+		TenantInfo:   ParseTenant(raw.Namespace),
+		HealthReport: HealthReport{},
 	}
+
 	if checkHealth {
 		vb.CheckHealth()
 	}
+
 	return vb
 }
 
 func (vb *VeleroBackup) CheckHealth() {
-	report := NewHealthReportFor("VeleroBackup", vb.Name, vb.Namespace)
-	switch vb.Phase {
+	report := NewHealthReport()
+	switch vb.Status.Phase {
 	case velerov1.BackupPhaseCompleted:
 		report.Healthy = StatusHealthy
 	case velerov1.BackupPhaseFailed, velerov1.BackupPhaseFailedValidation:
-		report.AddError(fmt.Sprintf("Backup failed in state: %s", vb.Phase))
+		report.AddError(fmt.Sprintf("Backup failed in state: %s", vb.Status.Phase))
 	case velerov1.BackupPhasePartiallyFailed:
 		report.AddWarning("Backup partially failed. See logs for details.")
 	default: // Includes Phases: BackupPhaseNew, BackupPhaseInProgress, BackupPhaseDeleting

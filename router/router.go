@@ -44,11 +44,17 @@ func SetupRouter() *gin.Engine {
 		ctx.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
 
-	healthGrp := router.Group("/health")
+	socketGrp := router.Group("/ws")
 	{
 		// This endpoint has no filter and will notify on all health updates
-		healthGrp.GET("/ws", func(ctx *gin.Context) {
+		socketGrp.GET("/", func(ctx *gin.Context) {
 			kubernetes.HealthUpdates.HandleRequest(ctx.Writer, ctx.Request)
+		})
+		socketGrp.GET("/namespaces", namespaceCtl.WatchNamespace)
+		socketGrp.GET("/ns", namespaceCtl.WatchNamespace)
+		socketGrp.GET("/nodes", nodeCtl.WatchNodes)
+		socketGrp.GET("/urls", func(ctx *gin.Context) {
+			kubernetes.HealthUpdates.HandleRequestWithKeys(ctx.Writer, ctx.Request, map[string]interface{}{"kind": "url"})
 		})
 	}
 
@@ -82,14 +88,6 @@ func SetupRouter() *gin.Engine {
 		veleroGrp.GET("/schedules/:namespace", veleroCtl.GetSchedules)
 	}
 
-	socketGrp := router.Group("/ws")
-	{
-		socketGrp.GET("/", func(ctx *gin.Context) {
-			//wsrouter.HandleRequest("all", ctx.Writer, ctx.Request)
-			kubernetes.HealthUpdates.HandleRequest(ctx.Writer, ctx.Request)
-		})
-		socketGrp.GET("/ns", namespaceCtl.WatchNamespaces)
-	}
 	logger.Debug().Msg("Router successfully initialized.")
 	return router
 }

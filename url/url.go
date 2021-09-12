@@ -12,6 +12,7 @@ import (
 	"github.com/zanloy/bms-api/kubernetes"
 	"github.com/zanloy/bms-api/models"
 	"gopkg.in/olahol/melody.v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
@@ -67,11 +68,11 @@ func runChecks() {
 	defer mutex.Unlock()
 
 	wg.Add(len(targets))
-	for idx, _ := range targets {
+	for idx := range targets {
 		go func(target *models.URLCheck) {
 			defer wg.Done()
-			var prevHealthy models.HealthyStatus = models.StatusUnknown
-			prevHealthy = target.Healthy
+			prevHealthy := target.Healthy
+			prevText := target.Text
 			logger.Debug().
 				Str("previous_healthy", string(prevHealthy)).
 				Msg(fmt.Sprintf("Checking %s", target.Url))
@@ -87,12 +88,19 @@ func runChecks() {
 			if target.Healthy != prevHealthy {
 				// Alert the press!
 				update := models.HealthUpdate{
-					Action:          "update",
-					Kind:            "url",
-					Name:            target.Name,
-					Healthy:         target.Healthy,
-					PreviousHealthy: prevHealthy,
-					Errors:          target.Errors,
+					TypeMeta: metav1.TypeMeta{
+						Kind: "url",
+					},
+					Name: target.Name,
+					HealthReport: models.HealthReport{
+						Healthy: target.Healthy,
+						Errors:  []string{target.Text},
+					},
+					Action: "update",
+					PreviousHealthReport: &models.HealthReport{
+						Healthy: prevHealthy,
+						Errors:  []string{prevText},
+					},
 				}
 
 				kubernetes.HealthUpdates.BroadcastFilter(update.ToMsg(), func(s *melody.Session) bool {

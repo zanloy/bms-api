@@ -12,18 +12,16 @@ type ResourceQuantities struct {
 	Utilized    resource.Quantity `json:"utilized"`
 }
 
+type NodeResources struct {
+	CPU    ResourceQuantities `json:"cpu"`
+	Memory ResourceQuantities `json:"memory"`
+}
+
 type Node struct {
-	Name           string             `json:"name"`
-	HealthReport   HealthReport       `json:"-"`
-	Healthy        HealthyStatus      `json:"healthy"`
-	Errors         []string           `json:"errors,omitempty"`
-	Warnings       []string           `json:"warnings,omitempty"`
-	Conditions     []string           `json:"conditions,omitempty"`
-	KernelVersion  string             `json:"kernel_version,omitempty"`
-	KubeletVersion string             `json:"kubelet_version,omitempty"`
-	CPU            ResourceQuantities `json:"cpu"`
-	Memory         ResourceQuantities `json:"memory"`
-	raw            *corev1.Node       `json:"-"`
+	corev1.Node  `json:",inline"`
+	HealthReport `json:"health"`
+	Conditions   []string      `json:"conditions"`
+	Resources    NodeResources `json:"resources"`
 }
 
 func NewNode(raw *corev1.Node, checkHealth bool) Node {
@@ -33,38 +31,33 @@ func NewNode(raw *corev1.Node, checkHealth bool) Node {
 			conditions = append(conditions, string(condition.Type))
 		}
 	}
+
 	node := Node{
-		Name:           raw.Name,
-		HealthReport:   HealthReport{},
-		Healthy:        StatusUnknown,
-		Errors:         []string{},
-		Warnings:       []string{},
-		Conditions:     conditions,
-		KernelVersion:  raw.Status.NodeInfo.KernelVersion,
-		KubeletVersion: raw.Status.NodeInfo.KubeletVersion,
-		CPU:            ResourceQuantities{Allocatable: raw.Status.Allocatable["cpu"]},
-		Memory:         ResourceQuantities{Allocatable: raw.Status.Allocatable["memory"]},
-		raw:            raw,
+		Node:         *raw,
+		HealthReport: HealthReport{},
+		Conditions:   conditions,
 	}
+
 	if checkHealth {
 		node.CheckHealth()
 	}
+
 	return node
 }
 
 func (n *Node) AddMetrics(metrics metricsv1beta1.NodeMetrics) {
 	if usage, ok := metrics.Usage["cpu"]; ok {
-		n.CPU.Utilized = usage
+		n.Resources.CPU.Utilized = usage
 	}
 	if usage, ok := metrics.Usage["memory"]; ok {
-		n.Memory.Utilized = usage
+		n.Resources.Memory.Utilized = usage
 	}
 }
 
 func (n *Node) CheckHealth() {
-	report := NewHealthReportFor("node", n.Name, "")
+	report := NewHealthReport()
 
-	for _, condition := range n.raw.Status.Conditions {
+	for _, condition := range n.Status.Conditions {
 		switch condition.Type {
 		case corev1.NodeReady:
 			if condition.Status != corev1.ConditionTrue {
@@ -77,9 +70,8 @@ func (n *Node) CheckHealth() {
 		}
 	}
 
+	// If nobody said we're unhealthy, that must mean we are health, right?
 	report.FailHealthy()
-	n.Healthy = report.Healthy
-	n.Errors = report.Errors
-	n.Warnings = report.Warnings
+
 	n.HealthReport = report
 }

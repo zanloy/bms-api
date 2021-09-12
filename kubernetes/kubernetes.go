@@ -23,9 +23,9 @@ import (
 type KubernetesError error
 
 var (
-	ConfigNotFoundError    KubernetesError = fmt.Errorf("kubernetes config file missing.")
-	NamespaceNotFoundError KubernetesError = fmt.Errorf("failed to find namespace")
-	TypeCastError          KubernetesError = fmt.Errorf("failed to typecast object")
+	ErrConfigNotFound    KubernetesError = fmt.Errorf("kubernetes config file missing")
+	ErrNamespaceNotFound KubernetesError = fmt.Errorf("failed to find namespace")
+	ErrTypeCast          KubernetesError = fmt.Errorf("failed to typecast object")
 )
 
 /* Package scoped variables */
@@ -36,7 +36,6 @@ var (
 	Factory       informers.SharedInformerFactory
 	HealthUpdates = melody.New()
 	stopCh        <-chan struct{}
-	tenants       = map[string][]string{} // Key is tenant name, value is envs
 )
 
 func Init(kubeconfig string) (err error) {
@@ -97,7 +96,7 @@ func Start(stopChannel <-chan struct{}) {
 	logger.Info().Msg("Waiting for informer cache to sync...")
 	startTime := time.Now()
 	Factory.WaitForCacheSync(stopCh)
-	logger.Info().Msg(fmt.Sprintf("Informer cache sync completed [%.2fs].", time.Since(startTime).Seconds()))
+	logger.Info().Msg(fmt.Sprintf("Informer cache sync completed. [%.2fs]", time.Since(startTime).Seconds()))
 
 	logger.Info().Msg("Kubernetes controller startup complete.")
 }

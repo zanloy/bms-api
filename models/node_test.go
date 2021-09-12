@@ -37,6 +37,14 @@ var (
 		},
 	}
 
+	healthyReport = models.HealthReport{
+		Timestamp: 0,
+		Healthy:   models.StatusHealthy,
+		Errors:    make([]string, 0),
+		Warnings:  make([]string, 0),
+		Alerts:    make([]string, 0),
+	}
+
 	metrics1m1Mi = metricsv1beta1.NodeMetrics{
 		Usage: corev1.ResourceList{
 			corev1.ResourceCPU:    *resource.NewQuantity(1, resource.DecimalSI),
@@ -44,32 +52,6 @@ var (
 		},
 	}
 )
-
-type comparableNode struct {
-	Name           string
-	Healthy        models.HealthyStatus
-	Errors         []string
-	Warnings       []string
-	Conditions     []string
-	KernelVersion  string
-	KubeletVersion string
-	CPU            models.ResourceQuantities
-	Memory         models.ResourceQuantities
-}
-
-func genComparable(input models.Node) comparableNode {
-	return comparableNode{
-		Name:           input.Name,
-		Healthy:        input.Healthy,
-		Errors:         input.Errors,
-		Warnings:       input.Warnings,
-		Conditions:     input.Conditions,
-		KernelVersion:  input.KernelVersion,
-		KubeletVersion: input.KubeletVersion,
-		CPU:            input.CPU,
-		Memory:         input.Memory,
-	}
-}
 
 func TestNewNode(t *testing.T) {
 	testCases := []struct {
@@ -80,27 +62,25 @@ func TestNewNode(t *testing.T) {
 		desc:  "with a healthy node",
 		input: healthyNode,
 		expected: models.Node{
-			Name:           "healthy-node",
-			Healthy:        models.StatusHealthy,
-			Errors:         []string{},
-			Warnings:       []string{},
-			Conditions:     []string{"Ready"},
-			KernelVersion:  "1",
-			KubeletVersion: "1",
-			CPU:            models.ResourceQuantities{Allocatable: *resource.NewQuantity(8, resource.DecimalSI)},
-			Memory:         models.ResourceQuantities{Allocatable: *resource.NewQuantity(16, resource.BinarySI)},
+			Node:         healthyNode,
+			HealthReport: healthyReport,
+			Conditions:   []string{"Ready"},
+			Resources:    models.NodeResources{},
 		},
 	}}
 
 	for _, testCase := range testCases {
 		result := models.NewNode(&testCase.input, true)
-		assert.Equal(t, genComparable(testCase.expected), genComparable(result), testCase.desc)
+		//assert.Equal(t, genComparable(testCase.expected), genComparable(result), testCase.desc)
+		// We zero out timestamp to prevent failed assertion due to a timestamp.
+		result.HealthReport.Timestamp = 0
+		assert.Equal(t, testCase.expected, result, testCase.desc)
 	}
 }
 
 func TestAddMetrics(t *testing.T) {
 	node := models.NewNode(&healthyNode, true)
 	node.AddMetrics(metrics1m1Mi)
-	assert.Equal(t, "1", node.CPU.Utilized.String())
-	assert.Equal(t, "1Mi", node.Memory.Utilized.String())
+	assert.Equal(t, "1", node.Status.Allocatable[corev1.ResourceCPU])
+	assert.Equal(t, "1Mi", node.Status.Allocatable[corev1.ResourceMemory])
 }

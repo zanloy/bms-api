@@ -4,59 +4,44 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/zanloy/bms-api/helpers"
-
 	corev1 "k8s.io/api/core/v1"
 )
 
-type NSVelero struct {
+type NamespaceVeleroInfo struct {
 	Schedules []VeleroSchedule `json:"schedules,omitempty"`
 	Backups   []VeleroBackup   `json:"backups,omitempty"`
 }
 
 type Namespace struct {
-	Name         string        `json:"name"`
-	Tenant       string        `json:"tenant"`
-	Environment  string        `json:"env,omitempty"`
-	HealthReport HealthReport  `json:"-"`
-	Healthy      HealthyStatus `json:"healthy"`
-	Errors       []string      `json:"errors,omitempty"`
-	Warnings     []string      `json:"warnings,omitempty"`
+	corev1.Namespace `json:",inline"`
+	TenantInfo       `json:"tenant"`
+	HealthReport     `json:"health"`
 
-	DaemonSets   []DaemonSet   `json:"daemonsets"`
-	Deployments  []Deployment  `json:"deployments"`
-	Pods         []Pod         `json:"pods"`
-	Services     []Service     `json:"services,omitempty"`
-	StatefulSets []StatefulSet `json:"statefulsets"`
-	Velero       NSVelero      `json:"velero"`
-
-	raw *corev1.Namespace
+	DaemonSets   []DaemonSet         `json:"daemonsets"`
+	Deployments  []Deployment        `json:"deployments"`
+	Pods         []Pod               `json:"pods"`
+	Services     []Service           `json:"services,omitempty"`
+	StatefulSets []StatefulSet       `json:"statefulsets"`
+	Velero       NamespaceVeleroInfo `json:"velero"`
 }
 
 func NewNamespace(raw *corev1.Namespace) Namespace {
-	tenant, env := helpers.ParseTenantAndEnv(raw.Name)
 	ns := Namespace{
-		Name:         raw.Name,
-		Tenant:       tenant,
-		Environment:  env,
+		Namespace:    *raw,
+		TenantInfo:   ParseTenant(raw.Namespace),
 		HealthReport: HealthReport{},
-		Healthy:      StatusUnknown,
-		Errors:       []string{},
-		Warnings:     []string{},
-		DaemonSets:   []DaemonSet{},
-		Deployments:  []Deployment{},
-		StatefulSets: []StatefulSet{},
-		Velero:       NSVelero{},
-		raw:          raw,
+		DaemonSets:   make([]DaemonSet, 0),
+		Deployments:  make([]Deployment, 0),
+		Pods:         make([]Pod, 0),
+		Services:     make([]Service, 0),
+		StatefulSets: make([]StatefulSet, 0),
+		Velero:       NamespaceVeleroInfo{},
 	}
 	return ns
 }
 
 func (ns *Namespace) CheckHealth() {
 	report := NewHealthReport()
-	report.Kind = "namespace"
-	report.Name = ns.Name
-	report.Tenant, report.Environment = helpers.ParseTenantAndEnv(ns.Name)
 
 	// DaemonSets
 	for _, daemonset := range ns.DaemonSets {
@@ -88,8 +73,8 @@ func (ns *Namespace) CheckHealth() {
 		if latest == nil {
 			latest = &backup
 		} else {
-			if backup.CompletedAt != nil {
-				if latest.CompletedAt.Before(backup.CompletedAt) {
+			if backup.Backup.Status.CompletionTimestamp != nil {
+				if latest.Backup.Status.CompletionTimestamp.Before(backup.Status.CompletionTimestamp) {
 					latest = &backup
 				}
 			}
@@ -98,11 +83,11 @@ func (ns *Namespace) CheckHealth() {
 
 	// Check the time and see if < 24h
 	if latest != nil {
-		if timestamp := latest.CompletedAt; timestamp != nil {
+		if timestamp := latest.Backup.Status.CompletionTimestamp; timestamp != nil {
 			if diff := time.Since(timestamp.Time).Hours(); diff <= 24.0 {
 				// Check the backup status
-				if latest.Healthy != StatusHealthy {
-					report.AddWarning(fmt.Sprintf("The latest backup has the status: %s", latest.Phase))
+				if latest.HealthReport.Healthy != StatusHealthy {
+					report.AddWarning(fmt.Sprintf("The latest backup has the status: %s", latest.Backup.Status.Phase))
 				}
 			} else {
 				report.AddWarning(fmt.Sprintf("The latest backup is %d days old", int(diff/24)))
@@ -128,47 +113,10 @@ func (ns *Namespace) CheckHealth() {
 		} else {
 			nsreport.Errors = append(nsreport.Errors, "Failed to fetch Services from Kubernetes.")
 		}
-
-		// Get the latest backup
-		if backups, err := VeleroBackupsForNamespace(namespace.Name); err == nil {
-			var latest *velerov1.Backup
-
-			for _, backup := range backups {
-				if latest == nil {
-					latest = &backup
-				} else {
-					if timestamp := backup.Status.CompletionTimestamp; timestamp != nil {
-						if latest.Status.CompletionTimestamp.Before(backup.Status.CompletionTimestamp) {
-							latest = &backup
-						}
-					}
-				}
-			}
-
-			// Check the time and see if < 24h
-			if latest != nil {
-				if timestamp := latest.Status.CompletionTimestamp; timestamp != nil {
-					if time.Since(timestamp.Time).Hours() < 24.0 {
-						// Check the backup status
-						if latest.Status.Phase != velerov1.BackupPhaseCompleted {
-							nsreport.AddWarning(fmt.Sprintf("The latest backup (%s) has the status: %s", latest.Name, latest.Status.Phase))
-						}
-					}
-				}
-			} else {
-				nsreport.AddWarning("No recent Velero backups found.")
-			}
-		} else {
-			nsreport.AddWarning(err.Error())
-		}
 	*/
 
 	// If nobody said we're unhealthy, that must mean we are health, right?
 	report.FailHealthy()
 
-	// Save everything to the object
-	ns.Healthy = report.Healthy
-	ns.Errors = report.Errors
-	ns.Warnings = report.Warnings
 	ns.HealthReport = report
 }
