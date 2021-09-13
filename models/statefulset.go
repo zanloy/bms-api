@@ -8,14 +8,14 @@ import (
 
 type StatefulSet struct {
 	appsv1.StatefulSet `json:",inline"`
-	TenantInfo         `json:"tenant"`
-	HealthReport       `json:"health"`
+	TenantInfo         TenantInfo   `json:"tenant"`
+	HealthReport       HealthReport `json:"health"`
 }
 
 func NewStatefulSet(raw *appsv1.StatefulSet, checkHealth bool) StatefulSet {
 	ss := StatefulSet{
 		StatefulSet:  *raw,
-		TenantInfo:   ParseTenant(raw.Namespace),
+		TenantInfo:   ParseTenantInfo(raw.Namespace),
 		HealthReport: HealthReport{},
 	}
 

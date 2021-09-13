@@ -6,14 +6,14 @@ import (
 
 type Pod struct {
 	corev1.Pod   `json:",inline"`
-	TenantInfo   `json:"tenant"`
-	HealthReport `json:"health"`
+	TenantInfo   TenantInfo   `json:"tenant"`
+	HealthReport HealthReport `json:"health"`
 }
 
 func NewPod(raw *corev1.Pod, checkHealth bool) Pod {
 	pod := Pod{
 		Pod:          *raw,
-		TenantInfo:   ParseTenant(raw.Namespace),
+		TenantInfo:   ParseTenantInfo(raw.Namespace),
 		HealthReport: HealthReport{},
 	}
 

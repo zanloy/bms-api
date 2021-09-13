@@ -8,6 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 func HealthUpdateFor(obj interface{}, action string) (models.HealthUpdate, error) {
@@ -15,23 +16,25 @@ func HealthUpdateFor(obj interface{}, action string) (models.HealthUpdate, error
 	case *extensionsv1beta1.DaemonSet:
 		ds := models.NewDaemonSet(typed, true)
 		return models.HealthUpdate{
-			TypeMeta:             typed.TypeMeta,
-			Kind:                 typed.Kind,
-			Name:                 typed.Name,
-			Namespace:            typed.Namespace,
-			HealthReport:         ds.HealthReport,
+			TypeMeta:             ds.TypeMeta,
+			Kind:                 "DaemonSet",
+			Name:                 ds.Name,
+			Namespace:            ds.Namespace,
+			TenantInfo:           ds.TenantInfo,
 			Action:               action,
+			HealthReport:         ds.HealthReport,
 			PreviousHealthReport: nil,
 		}, nil
 	case *extensionsv1beta1.Deployment:
 		deployment := models.NewDeployment(typed, true)
 		return models.HealthUpdate{
-			TypeMeta:             typed.TypeMeta,
-			Kind:                 typed.Kind,
-			Name:                 typed.Name,
-			Namespace:            typed.Namespace,
-			HealthReport:         deployment.HealthReport,
+			TypeMeta:             deployment.TypeMeta,
+			Kind:                 "Deployment",
+			Name:                 deployment.Name,
+			Namespace:            deployment.Namespace,
+			TenantInfo:           deployment.TenantInfo,
 			Action:               action,
+			HealthReport:         deployment.HealthReport,
 			PreviousHealthReport: nil,
 		}, nil
 	case *corev1.Namespace:
@@ -49,45 +52,65 @@ func HealthUpdateFor(obj interface{}, action string) (models.HealthUpdate, error
 		}
 		ns.CheckHealth()
 		return models.HealthUpdate{
-			TypeMeta:             typed.TypeMeta,
-			Kind:                 typed.Kind,
-			Name:                 typed.Name,
-			Namespace:            typed.Namespace,
-			HealthReport:         ns.HealthReport,
+			TypeMeta:             ns.TypeMeta,
+			Kind:                 "Namespace",
+			Name:                 ns.Name,
+			Namespace:            "",
+			TenantInfo:           ns.TenantInfo,
 			Action:               action,
+			HealthReport:         ns.HealthReport,
 			PreviousHealthReport: nil,
 		}, nil
 	case *corev1.Node:
 		node := models.NewNode(typed, true)
 		return models.HealthUpdate{
-			TypeMeta:             typed.TypeMeta,
-			Kind:                 typed.Kind,
-			Name:                 typed.Name,
-			Namespace:            typed.Namespace,
-			HealthReport:         node.HealthReport,
+			TypeMeta:             node.TypeMeta,
+			Kind:                 "Node",
+			Name:                 node.Name,
+			Namespace:            node.Namespace,
 			Action:               action,
+			HealthReport:         node.HealthReport,
 			PreviousHealthReport: nil,
 		}, nil
 	case *corev1.Pod:
 		pod := models.NewPod(typed, true)
 		return models.HealthUpdate{
-			TypeMeta:             typed.TypeMeta,
-			Kind:                 typed.Kind,
-			Name:                 typed.Name,
-			Namespace:            typed.Namespace,
-			HealthReport:         pod.HealthReport,
+			TypeMeta:             pod.TypeMeta,
+			Kind:                 "Pod",
+			Name:                 pod.Name,
+			Namespace:            pod.Namespace,
+			TenantInfo:           pod.TenantInfo,
 			Action:               action,
+			HealthReport:         pod.HealthReport,
+			PreviousHealthReport: nil,
+		}, nil
+	case *corev1.Service:
+		selector := labels.SelectorFromSet(labels.Set(typed.Spec.Selector))
+		pods, err := GetPodsBySelector(typed.Namespace, selector)
+		if err != nil {
+			pods = make([]models.Pod, 0)
+		}
+		svc := models.NewServiceWithPods(typed, pods, true)
+		return models.HealthUpdate{
+			TypeMeta:             svc.TypeMeta,
+			Kind:                 "Service",
+			Name:                 svc.Name,
+			Namespace:            svc.Namespace,
+			TenantInfo:           svc.TenantInfo,
+			Action:               action,
+			HealthReport:         svc.HealthReport,
 			PreviousHealthReport: nil,
 		}, nil
 	case *appsv1.StatefulSet:
 		ss := models.NewStatefulSet(typed, true)
 		return models.HealthUpdate{
-			TypeMeta:             typed.TypeMeta,
-			Kind:                 typed.Kind,
-			Name:                 typed.Name,
-			Namespace:            typed.Namespace,
-			HealthReport:         ss.HealthReport,
+			TypeMeta:             ss.TypeMeta,
+			Kind:                 "StatefulSet",
+			Name:                 ss.Name,
+			Namespace:            ss.Namespace,
+			TenantInfo:           ss.TenantInfo,
 			Action:               action,
+			HealthReport:         ss.HealthReport,
 			PreviousHealthReport: nil,
 		}, nil
 	default:

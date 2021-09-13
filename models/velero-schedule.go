@@ -13,7 +13,7 @@ type VeleroSchedule struct {
 func NewVeleroSchedule(raw velerov1.Schedule, checkHealth bool) VeleroSchedule {
 	vs := VeleroSchedule{
 		Schedule:     raw,
-		TenantInfo:   ParseTenant(raw.Namespace),
+		TenantInfo:   ParseTenantInfo(raw.Namespace),
 		HealthReport: HealthReport{},
 	}
 

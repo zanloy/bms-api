@@ -80,7 +80,7 @@ func Broadcast(update models.HealthUpdate) error {
 	}
 
 	// Broadcast to "kind" channel
-	if outbox, ok := outboxes[update.Kind]; ok {
+	if outbox, ok := outboxes[strings.ToLower(update.Kind)]; ok {
 		outbox.Broadcast(update.ToMsg())
 	} else {
 		return fmt.Errorf("there was no outbox with kind [%s] found", update.Kind)

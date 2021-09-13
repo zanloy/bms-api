@@ -15,6 +15,7 @@ import (
 	ogkubernetes "k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 )
@@ -41,7 +42,6 @@ var (
 func Init(kubeconfig string) (err error) {
 	// Setup logger
 	logger = log.With().
-		Timestamp().
 		Str("component", "kubernetes").
 		Logger()
 
@@ -88,7 +88,7 @@ func Start(stopChannel <-chan struct{}) {
 	stopCh = stopChannel
 
 	/* Setup cache and informers */
-	Factory = informers.NewSharedInformerFactory(Clientset, time.Minute*5)
+	Factory = informers.NewSharedInformerFactory(Clientset, 0)
 	setupInformers()
 	Factory.Start(stopCh)
 
@@ -130,4 +130,9 @@ func NamespacesArray() (namespaces []string, err error) {
 		namespaces[idx] = ns.Name
 	}
 	return
+}
+
+// Check is cache is synced
+func WaitForCacheSync() {
+	cache.WaitForCacheSync(stopCh, Factory.Core().V1().Namespaces().Informer().HasSynced)
 }

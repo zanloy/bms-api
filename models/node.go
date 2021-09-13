@@ -19,7 +19,7 @@ type NodeResources struct {
 
 type Node struct {
 	corev1.Node  `json:",inline"`
-	HealthReport `json:"health"`
+	HealthReport HealthReport  `json:"health"`
 	Conditions   []string      `json:"conditions"`
 	Resources    NodeResources `json:"resources"`
 }

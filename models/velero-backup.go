@@ -15,7 +15,7 @@ type VeleroBackup struct {
 func NewVeleroBackup(raw velerov1.Backup, checkHealth bool) VeleroBackup {
 	vb := VeleroBackup{
 		Backup:       raw,
-		TenantInfo:   ParseTenant(raw.Namespace),
+		TenantInfo:   ParseTenantInfo(raw.Namespace),
 		HealthReport: HealthReport{},
 	}
 

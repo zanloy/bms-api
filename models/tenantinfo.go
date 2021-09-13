@@ -9,8 +9,7 @@ type TenantInfo struct {
 	Environment string `json:"environment,omitempty"`
 }
 
-// TODO: find a better home for this
-func ParseTenant(namespace string) (tt TenantInfo) {
+func ParseTenantInfo(namespace string) (tt TenantInfo) {
 	tt.Name = "platform"
 	tt.Environment = ""
 

@@ -8,8 +8,8 @@ import (
 
 type Service struct {
 	corev1.Service `json:",inline"`
-	TenantInfo     `json:"tenant"`
-	HealthReport   `json:"health"`
+	TenantInfo     TenantInfo   `json:"tenant"`
+	HealthReport   HealthReport `json:"health"`
 
 	Pods []Pod `json:"pods"`
 }
@@ -21,7 +21,7 @@ func NewService(raw *corev1.Service, checkHealth bool) Service {
 func NewServiceWithPods(raw *corev1.Service, pods []Pod, checkHealth bool) Service {
 	service := Service{
 		Service:      *raw,
-		TenantInfo:   ParseTenant(raw.Namespace),
+		TenantInfo:   ParseTenantInfo(raw.Namespace),
 		HealthReport: HealthReport{},
 		Pods:         pods,
 	}

@@ -50,7 +50,7 @@ func main() {
 
 	/* Setup os.Signal catcher */
 	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 	go func(stopCh chan struct{}) {
 		for sig := range signalCh {
 			// Graceful shutdown

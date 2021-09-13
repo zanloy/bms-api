@@ -18,11 +18,12 @@ const (
 
 type HealthUpdate struct {
 	metav1.TypeMeta      `json:",inline"`
-	Kind                 string `json:"kind"`
-	Name                 string `json:"name"`
-	Namespace            string `json:"namespace"`
+	Kind                 string     `json:"kind"`
+	Name                 string     `json:"name"`
+	Namespace            string     `json:"namespace"`
+	TenantInfo           TenantInfo `json:"tenant"`
+	Action               string     `json:"action"`
 	HealthReport         `json:",inline"`
-	Action               string        `json:"action"`
 	PreviousHealthReport *HealthReport `json:"previousHealthReport,omitempty"`
 }
 

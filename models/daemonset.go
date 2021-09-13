@@ -8,14 +8,14 @@ import (
 
 type DaemonSet struct {
 	extensionsv1beta1.DaemonSet `json:",inline"`
-	TenantInfo                  `json:"tenant"`
-	HealthReport                `json:"health"`
+	TenantInfo                  TenantInfo   `json:"tenant"`
+	HealthReport                HealthReport `json:"health"`
 }
 
 func NewDaemonSet(raw *extensionsv1beta1.DaemonSet, checkHealth bool) DaemonSet {
 	ds := DaemonSet{
 		DaemonSet:    *raw,
-		TenantInfo:   ParseTenant(raw.Namespace),
+		TenantInfo:   ParseTenantInfo(raw.Namespace),
 		HealthReport: HealthReport{},
 	}
 

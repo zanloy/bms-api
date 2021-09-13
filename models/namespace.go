@@ -14,8 +14,8 @@ type NamespaceVeleroInfo struct {
 
 type Namespace struct {
 	corev1.Namespace `json:",inline"`
-	TenantInfo       `json:"tenant"`
-	HealthReport     `json:"health"`
+	TenantInfo       TenantInfo   `json:"tenant"`
+	HealthReport     HealthReport `json:"health"`
 
 	DaemonSets   []DaemonSet         `json:"daemonsets"`
 	Deployments  []Deployment        `json:"deployments"`
@@ -28,7 +28,7 @@ type Namespace struct {
 func NewNamespace(raw *corev1.Namespace) Namespace {
 	ns := Namespace{
 		Namespace:    *raw,
-		TenantInfo:   ParseTenant(raw.Namespace),
+		TenantInfo:   ParseTenantInfo(raw.Namespace),
 		HealthReport: HealthReport{},
 		DaemonSets:   make([]DaemonSet, 0),
 		Deployments:  make([]Deployment, 0),

@@ -49,6 +49,7 @@ func SetupRouter() *gin.Engine {
 		// This endpoint has no filter and will notify on all health updates
 		socketGrp.GET("/", func(ctx *gin.Context) {
 			kubernetes.HealthUpdates.HandleRequest(ctx.Writer, ctx.Request)
+			//wsrouter.HandleRequest("all", ctx.Writer, ctx.Request)
 		})
 		socketGrp.GET("/namespaces", namespaceCtl.WatchNamespace)
 		socketGrp.GET("/ns", namespaceCtl.WatchNamespace)

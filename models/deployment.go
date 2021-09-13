@@ -9,14 +9,14 @@ import (
 
 type Deployment struct {
 	extensionsv1beta1.Deployment `json:",inline"`
-	TenantInfo                   `json:"tenant"`
-	HealthReport                 `json:"health"`
+	TenantInfo                   TenantInfo   `json:"tenant"`
+	HealthReport                 HealthReport `json:"health"`
 }
 
 func NewDeployment(raw *extensionsv1beta1.Deployment, checkHealth bool) Deployment {
 	deployment := Deployment{
 		Deployment:   *raw,
-		TenantInfo:   ParseTenant(raw.Namespace),
+		TenantInfo:   ParseTenantInfo(raw.Namespace),
 		HealthReport: HealthReport{},
 	}
 

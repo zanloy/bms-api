@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/zanloy/bms-api/models"
+	"github.com/zanloy/bms-api/wsrouter"
 
 	"gopkg.in/olahol/melody.v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -34,8 +35,10 @@ func setupInformers() {
 	Factory.Core().V1().
 		Pods().Informer().AddEventHandler(handlers)
 
-	Factory.Core().V1().
-		Services().Informer().AddEventHandler(handlers)
+	/*
+		Factory.Core().V1().
+			Services().Informer().AddEventHandler(handlers)
+	*/
 
 	Factory.Apps().V1().
 		StatefulSets().Informer().AddEventHandler(handlers)
@@ -80,6 +83,10 @@ func filterNode(s *melody.Session) bool {
 	return filterKind(s, "node")
 }
 
+func filterService(s *melody.Session) bool {
+	return filterKind(s, "service")
+}
+
 func filterStatefulSet(s *melody.Session) bool {
 	return filterKind(s, "statefulset")
 }
@@ -100,6 +107,8 @@ func FilterFor(obj interface{}) filterFunc {
 		return filterNode
 	case *corev1.Pod:
 		return filterPod
+	case *corev1.Service:
+		return filterService
 	case *appsv1.StatefulSet:
 		return filterStatefulSet
 	case models.URLCheck:
@@ -111,41 +120,70 @@ func FilterFor(obj interface{}) filterFunc {
 
 func broadcastNamespaceHealth(name string) {
 	if name != "" {
-		// Check is cache is synced
-		// TODO: Move this to a function to call from anywhere in this package
-		//cache.WaitForCacheSync(stopCh, Factory.Core().V1().Namespaces().Informer().HasSynced)
-
-		if ns, err := GetNamespace(name); err == nil {
-			update := models.HealthUpdate{
-				TypeMeta:             ns.Namespace.TypeMeta,
-				Kind:                 ns.Kind,
-				Name:                 ns.Name,
-				Namespace:            ns.Namespace.Namespace,
-				HealthReport:         ns.HealthReport,
-				Action:               "update",
-				PreviousHealthReport: nil,
+		// TODO: Implement this filter (can't now because circle dependency)
+		/*
+			// See if we should even alert on this ns
+			if !config.Config.ShouldNotify("Namespace", name, "") {
+				return
 			}
+		*/
 
+		//cache.WaitForCacheSync(stopCh, Factory.Core().V1().ComponentStatuses().Informer().HasSynced)
+
+		// TODO: Get this value from Config
+		//waitduration, _ := time.ParseDuration("5s")
+		//time.Sleep(waitduration)
+
+		ns, err := GetNamespace(name)
+		if err != nil {
+			return
+		}
+
+		if update, err := HealthUpdateFor(ns, "broadcast-namespace"); err == nil {
 			HealthUpdates.BroadcastFilter(update.ToMsg(), filterNamespace)
 		}
 	}
 }
 
-func handleAdd(obj interface{}) {
-	var (
-		update models.HealthUpdate
-		err    error
-	)
+// TODO: Find a home
+func IsCacheSynced(obj interface{}) bool {
+	switch obj.(type) {
+	case *extensionsv1beta1.DaemonSet:
+		return Factory.Extensions().V1beta1().DaemonSets().Informer().HasSynced()
+	case *extensionsv1beta1.Deployment:
+		return Factory.Extensions().V1beta1().Deployments().Informer().HasSynced()
+	case *corev1.Namespace:
+		return Factory.Core().V1().Namespaces().Informer().HasSynced()
+	case *corev1.Node:
+		return Factory.Core().V1().Nodes().Informer().HasSynced()
+	case *corev1.Pod:
+		return Factory.Core().V1().Pods().Informer().HasSynced()
+	case *corev1.Service:
+		return Factory.Core().V1().Services().Informer().HasSynced()
+	case *appsv1.StatefulSet:
+		return Factory.Apps().V1().StatefulSets().Informer().HasSynced()
+	default:
+		return false
+	}
+}
 
-	if update, err = HealthUpdateFor(obj, "add"); err != nil {
+func handleAdd(obj interface{}) {
+	var update models.HealthUpdate
+
+	if !IsCacheSynced(obj) {
+		return
+	}
+
+	update, err := HealthUpdateFor(obj, "add")
+	if err != nil {
 		logger.Err(err)
 		return
 	}
 
-	//wsrouter.Broadcast(update)
+	wsrouter.Broadcast(update)
 
 	HealthUpdates.BroadcastFilter(update.ToMsg(), FilterFor(obj))
-	//broadcastNamespaceHealth(update.Namespace)
+	broadcastNamespaceHealth(update.Namespace)
 }
 
 func handleUpdate(prevObj interface{}, obj interface{}) {
@@ -153,6 +191,10 @@ func handleUpdate(prevObj interface{}, obj interface{}) {
 		prevReport *models.HealthReport
 		update     models.HealthUpdate
 	)
+
+	if !IsCacheSynced(obj) {
+		return
+	}
 
 	if prevUpdate, err := HealthUpdateFor(prevObj, "update"); err == nil {
 		prevReport = &prevUpdate.HealthReport
@@ -166,23 +208,30 @@ func handleUpdate(prevObj interface{}, obj interface{}) {
 
 	update.PreviousHealthReport = prevReport
 
-	//wsrouter.Broadcast(update)
-
 	//logger.Debug().Interface("object", obj).Msg("Update event occurred.")
-	HealthUpdates.BroadcastFilter(update.ToMsg(), FilterFor(obj))
-	//broadcastNamespaceHealth(update.Namespace)
+	if update.Healthy != prevReport.Healthy {
+		wsrouter.Broadcast(update)
+		HealthUpdates.BroadcastFilter(update.ToMsg(), FilterFor(obj))
+		broadcastNamespaceHealth(update.Namespace)
+	}
 }
 
 func handleDelete(obj interface{}) {
+	var update models.HealthUpdate
+
+	if !IsCacheSynced(obj) {
+		return
+	}
+
 	update, err := HealthUpdateFor(obj, "delete")
 	if err != nil {
 		logger.Err(err)
 		return
 	}
 
-	//wsrouter.Broadcast(update)
+	wsrouter.Broadcast(update)
 
 	//logger.Debug().Interface("object", obj).Msg("Delete event occurred.")
 	HealthUpdates.BroadcastFilter(update.ToMsg(), FilterFor(obj))
-	//broadcastNamespaceHealth(update.Namespace)
+	broadcastNamespaceHealth(update.Namespace)
 }

@@ -61,7 +61,7 @@ func reload(e fsnotify.Event) {
 	if err := viper.Unmarshal(&newconfig); err == nil {
 		Config = newconfig
 		url.Reload(Config.Urls) // Reload our url checks
-		wsrouter.LoadFilters(Config.Filters)
+		//wsrouter.LoadFilters(Config.Filters)
 	} else {
 		logger.Err(err).Msg("Failed to parse config file. Retaining previous config.")
 	}
