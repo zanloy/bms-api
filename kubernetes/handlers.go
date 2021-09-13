@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/zanloy/bms-api/models"
@@ -35,13 +36,17 @@ func setupInformers() {
 	Factory.Core().V1().
 		Pods().Informer().AddEventHandler(handlers)
 
-	/*
-		Factory.Core().V1().
-			Services().Informer().AddEventHandler(handlers)
-	*/
+	Factory.Core().V1().
+		Services().Informer().AddEventHandler(handlers)
 
 	Factory.Apps().V1().
 		StatefulSets().Informer().AddEventHandler(handlers)
+
+	VeleroFactory.Velero().V1().
+		Backups().Informer().AddEventHandler(handlers)
+
+	VeleroFactory.Velero().V1().
+		Schedules().Informer().AddEventHandler(handlers)
 }
 
 type filterFunc func(*melody.Session) bool
@@ -134,13 +139,15 @@ func broadcastNamespaceHealth(name string) {
 		//waitduration, _ := time.ParseDuration("5s")
 		//time.Sleep(waitduration)
 
-		ns, err := GetNamespace(name)
+		ns, err := Namespaces().Get(name)
 		if err != nil {
 			return
 		}
 
-		if update, err := HealthUpdateFor(ns, "broadcast-namespace"); err == nil {
-			HealthUpdates.BroadcastFilter(update.ToMsg(), filterNamespace)
+		if update, err := HealthUpdateFor(ns, "refresh"); err == nil {
+			HealthUpdates.Broadcast(update.ToMsg())
+		} else {
+			logger.Debug().Msg(fmt.Sprintf("could not find namespace: %s: %v", name, err))
 		}
 	}
 }

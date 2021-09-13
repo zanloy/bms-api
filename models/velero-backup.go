@@ -8,13 +8,13 @@ import (
 
 type VeleroBackup struct {
 	velerov1.Backup `json:",inline"`
-	TenantInfo      `json:"tenant"`
-	HealthReport    `json:"health"`
+	TenantInfo      TenantInfo   `json:"tenant"`
+	HealthReport    HealthReport `json:"health"`
 }
 
-func NewVeleroBackup(raw velerov1.Backup, checkHealth bool) VeleroBackup {
+func NewVeleroBackup(raw *velerov1.Backup, checkHealth bool) VeleroBackup {
 	vb := VeleroBackup{
-		Backup:       raw,
+		Backup:       *raw,
 		TenantInfo:   ParseTenantInfo(raw.Namespace),
 		HealthReport: HealthReport{},
 	}
@@ -41,8 +41,6 @@ func (vb *VeleroBackup) CheckHealth() {
 
 	// Since we explicitly set Healthy, we don't need to fallback to any state
 	//report.FailHealthy()
-	vb.Healthy = report.Healthy
-	vb.Errors = report.Errors
-	vb.Warnings = report.Warnings
+
 	vb.HealthReport = report
 }

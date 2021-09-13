@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -63,19 +64,20 @@ func (ns *Namespace) CheckHealth() {
 	for _, statefulset := range ns.StatefulSets {
 		report.FoldIn(statefulset.HealthReport, fmt.Sprintf("StatefulSet[%s]", statefulset.Name))
 	}
+	// TODO: Fix this
 	// Velero
 	if len(ns.Velero.Schedules) < 1 {
 		report.AddWarning("There are no Velero Schedules for this namespace")
 	}
 	// Find the most recent backup
-	var latest *VeleroBackup
+	var latest *velerov1.Backup
 	for _, backup := range ns.Velero.Backups {
 		if latest == nil {
-			latest = &backup
+			latest = backup.DeepCopy()
 		} else {
 			if backup.Backup.Status.CompletionTimestamp != nil {
-				if latest.Backup.Status.CompletionTimestamp.Before(backup.Status.CompletionTimestamp) {
-					latest = &backup
+				if latest.Status.CompletionTimestamp.Before(backup.Status.CompletionTimestamp) {
+					latest = backup.DeepCopy()
 				}
 			}
 		}
@@ -83,11 +85,12 @@ func (ns *Namespace) CheckHealth() {
 
 	// Check the time and see if < 24h
 	if latest != nil {
-		if timestamp := latest.Backup.Status.CompletionTimestamp; timestamp != nil {
+		latestBackup := NewVeleroBackup(latest, true)
+		if timestamp := latestBackup.Status.CompletionTimestamp; timestamp != nil {
 			if diff := time.Since(timestamp.Time).Hours(); diff <= 24.0 {
 				// Check the backup status
-				if latest.HealthReport.Healthy != StatusHealthy {
-					report.AddWarning(fmt.Sprintf("The latest backup has the status: %s", latest.Backup.Status.Phase))
+				if latestBackup.HealthReport.Healthy != StatusHealthy {
+					report.AddWarning(fmt.Sprintf("The latest backup has the status: %s", latestBackup.Status.Phase))
 				}
 			} else {
 				report.AddWarning(fmt.Sprintf("The latest backup is %d days old", int(diff/24)))
@@ -96,6 +99,7 @@ func (ns *Namespace) CheckHealth() {
 	} else {
 		report.AddWarning("No recent Velero backups found.")
 	}
+
 	/*
 		// Check Services
 		if services, err := Services(namespace.Name).List(labels.Everything()); err == nil {

@@ -1,14 +1,12 @@
 package kubernetes // import "github.com/zanloy/bms-api/kubernetes"
 
 import (
-	"context"
-	"errors"
+	"fmt"
 	"regexp"
 
 	"github.com/zanloy/bms-api/models"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 )
 
@@ -169,27 +167,20 @@ func GetVeleroBackups(filter string) ([]models.VeleroBackup, error) {
 		filter = ".*"
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// Get backups
-	if client := VeleroV1(); client != nil {
-		if backups, err := client.Backups("velero").List(ctx, metav1.ListOptions{}); err == nil {
-			for _, backup := range backups.Items {
-				for _, ns := range backup.Spec.IncludedNamespaces {
-					// TODO: Actually handle or log the error
-					if ok, _ := regexp.Match(filter, []byte(ns)); ok {
-						results = append(results, models.NewVeleroBackup(backup, true))
-					}
+	if backups, err := VeleroBackups().List(labels.Everything()); err == nil {
+		for _, backup := range backups {
+			for _, ns := range backup.Spec.IncludedNamespaces {
+				// TODO: Actually handle or log the error
+				if ok, _ := regexp.Match(filter, []byte(ns)); ok {
+					results = append(results, models.NewVeleroBackup(backup, true))
 				}
 			}
-		} else {
-			return results, err
 		}
 	} else {
-		return results, errors.New("failed to create Velero client")
+		logger.Err(err).Msg(fmt.Sprintf("failed to get velero backups for namespace [%s]", filter))
+		return results, err
 	}
-
 	return results, nil
 }
 
@@ -199,25 +190,18 @@ func GetVeleroSchedules(filter string) ([]models.VeleroSchedule, error) {
 		filter = ".*"
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Get backups
-	if client := VeleroV1(); client != nil {
-		if schedules, err := client.Schedules("velero").List(ctx, metav1.ListOptions{}); err == nil {
-			for _, schedule := range schedules.Items {
-				for _, ns := range schedule.Spec.Template.IncludedNamespaces {
-					// TODO: Actually handle or log the error
-					if ok, _ := regexp.Match(filter, []byte(ns)); ok {
-						results = append(results, models.NewVeleroSchedule(schedule, true))
-					}
+	// Get schedules
+	if schedules, err := VeleroSchedules().List(labels.Everything()); err == nil {
+		for _, schedule := range schedules {
+			for _, ns := range schedule.Spec.Template.IncludedNamespaces {
+				// TODO: Actually handle or log the error
+				if ok, _ := regexp.Match(filter, []byte(ns)); ok {
+					results = append(results, models.NewVeleroSchedule(schedule, true))
 				}
 			}
-		} else {
-			return results, err
 		}
 	} else {
-		return results, errors.New("failed to create Velero client")
+		return results, err
 	}
 
 	return results, nil

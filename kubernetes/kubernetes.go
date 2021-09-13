@@ -8,6 +8,9 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	veleroclient "github.com/vmware-tanzu/velero/pkg/client"
+	veleroclientset "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	veleroinformers "github.com/vmware-tanzu/velero/pkg/generated/informers/externalversions"
 	"github.com/zanloy/bms-api/helpers"
 	"gopkg.in/olahol/melody.v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -31,10 +34,14 @@ var (
 
 /* Package scoped variables */
 var (
-	logger        zerolog.Logger
-	Clientset     ogkubernetes.Interface
-	Config        *rest.Config
-	Factory       informers.SharedInformerFactory
+	logger          zerolog.Logger
+	Clientset       ogkubernetes.Interface
+	Config          *rest.Config
+	Factory         informers.SharedInformerFactory
+	VeleroClientset veleroclientset.Interface
+	VeleroConfig    veleroclient.VeleroConfig
+	VeleroFactory   veleroinformers.SharedInformerFactory
+
 	HealthUpdates = melody.New()
 	stopCh        <-chan struct{}
 )
@@ -75,6 +82,10 @@ func Init(kubeconfig string) (err error) {
 		return err
 	}
 
+	// Load Velero config (default: ~/.config/velero/config.json)
+	VeleroConfig, _ = veleroclient.LoadConfig()
+	VeleroClientset, _ = veleroclient.NewFactory("bms", VeleroConfig).Client()
+
 	logger.Debug().Msg("Kubernetes initilization complete.")
 	return nil
 }
@@ -89,8 +100,13 @@ func Start(stopChannel <-chan struct{}) {
 
 	/* Setup cache and informers */
 	Factory = informers.NewSharedInformerFactory(Clientset, 0)
+
+	/* Setup velero informer */
+	VeleroFactory = veleroinformers.NewSharedInformerFactory(VeleroClientset, 0)
+
 	setupInformers()
 	Factory.Start(stopCh)
+	VeleroFactory.Start(stopCh)
 
 	// TODO: Add a timeout to this.
 	logger.Info().Msg("Waiting for informer cache to sync...")

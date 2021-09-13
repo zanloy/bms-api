@@ -6,13 +6,13 @@ import (
 
 type VeleroSchedule struct {
 	velerov1.Schedule `json:",inline"`
-	TenantInfo        `json:"tenant"`
-	HealthReport      `json:"health"`
+	TenantInfo        TenantInfo   `json:"tenant"`
+	HealthReport      HealthReport `json:"health"`
 }
 
-func NewVeleroSchedule(raw velerov1.Schedule, checkHealth bool) VeleroSchedule {
+func NewVeleroSchedule(raw *velerov1.Schedule, checkHealth bool) VeleroSchedule {
 	vs := VeleroSchedule{
-		Schedule:     raw,
+		Schedule:     *raw,
 		TenantInfo:   ParseTenantInfo(raw.Namespace),
 		HealthReport: HealthReport{},
 	}
@@ -30,10 +30,7 @@ func (vs *VeleroSchedule) CheckHealth() {
 		report.AddError("failed validation phase")
 	}
 
-	// Since we explicitly set Healthy, we don't need to fallback to any state
 	report.FailHealthy()
-	vs.Healthy = report.Healthy
-	vs.Errors = report.Errors
-	vs.Warnings = report.Warnings
+
 	vs.HealthReport = report
 }
