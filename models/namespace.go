@@ -1,60 +1,126 @@
 package models
 
 import (
-	"strings"
+	"fmt"
+	"time"
 
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/informers"
 )
 
-type Namespace struct {
-	Name    string        `json:"name"`
-	Tenant  string        `json:"tenant"`
-	Env     string        `json:"env,omitempty"`
-	Healthy HealthyStatus `json:"healthy"`
-	Errors  []string      `json:"errors,omitempty"`
-
-	Deployments []Deployment `json:"deployments"`
+type NamespaceVeleroInfo struct {
+	Schedules []VeleroSchedule `json:"schedules,omitempty"`
+	Backups   []VeleroBackup   `json:"backups,omitempty"`
 }
 
-// Takes in a corev1.Namespace from k8 and builds a Namespace.
-func FromK8Namespace(input *corev1.Namespace, factory informers.SharedInformerFactory) Namespace {
-	tenant, env := parseTenantAndEnv(input.Name)
-	report, err := HealthReportFor(input, factory)
-	if err != nil {
-		report = HealthReport{
-			Healthy: StatusUnknown,
-			Errors:  []string{err.Error()},
-		}
-	}
+type Namespace struct {
+	corev1.Namespace `json:",inline"`
+	TenantInfo       TenantInfo   `json:"tenant"`
+	HealthReport     HealthReport `json:"health"`
 
+	DaemonSets   []DaemonSet         `json:"daemonsets"`
+	Deployments  []Deployment        `json:"deployments"`
+	Pods         []Pod               `json:"pods"`
+	Services     []Service           `json:"services,omitempty"`
+	StatefulSets []StatefulSet       `json:"statefulsets"`
+	Velero       NamespaceVeleroInfo `json:"velero"`
+}
+
+func NewNamespace(raw *corev1.Namespace) Namespace {
 	ns := Namespace{
-		Name:    input.Name,
-		Tenant:  tenant,
-		Env:     env,
-		Healthy: report.Healthy,
-		Errors:  report.Errors,
+		Namespace:    *raw,
+		TenantInfo:   ParseTenantInfo(raw.Namespace),
+		HealthReport: HealthReport{},
+		DaemonSets:   make([]DaemonSet, 0),
+		Deployments:  make([]Deployment, 0),
+		Pods:         make([]Pod, 0),
+		Services:     make([]Service, 0),
+		StatefulSets: make([]StatefulSet, 0),
+		Velero:       NamespaceVeleroInfo{},
 	}
-
-	// TODO: Get bms configmap
-	// Setup values from config
-
 	return ns
 }
 
-func parseTenantAndEnv(name string) (string, string) {
-	tenant := "platform"
-	env := ""
+func (ns *Namespace) CheckHealth() {
+	report := NewHealthReport()
 
-	// See if we can set Tenant/Env from Name
-	if strings.Contains(name, "-") {
-		parts := strings.Split(name, "-")
-		switch last := parts[len(parts)-1]; last {
-		case "cola", "demo", "dev", "int", "ivv", "pat", "pdt", "perf", "preprod", "prod", "prodtest", "sqa", "test", "uat":
-			env = last
-			tenant = strings.Join(parts[:len(parts)-1], "-")
+	// DaemonSets
+	for _, daemonset := range ns.DaemonSets {
+		report.FoldIn(daemonset.HealthReport, fmt.Sprintf("DaemonSet[%s]", daemonset.Name))
+	}
+	// Deployments
+	for _, deployment := range ns.Deployments {
+		report.FoldIn(deployment.HealthReport, fmt.Sprintf("Deployment[%s]", deployment.Name))
+	}
+	// Pods
+	for _, pod := range ns.Pods {
+		report.FoldIn(pod.HealthReport, fmt.Sprintf("Pod[%s]", pod.Name))
+	}
+	// Services
+	for _, service := range ns.Services {
+		report.FoldIn(service.HealthReport, fmt.Sprintf("Service[%s]", service.Name))
+	}
+	// StatefulSets
+	for _, statefulset := range ns.StatefulSets {
+		report.FoldIn(statefulset.HealthReport, fmt.Sprintf("StatefulSet[%s]", statefulset.Name))
+	}
+	// TODO: Fix this
+	// Velero
+	if len(ns.Velero.Schedules) < 1 {
+		report.AddWarning("There are no Velero Schedules for this namespace")
+	}
+	// Find the most recent backup
+	var latest *velerov1.Backup
+	for _, backup := range ns.Velero.Backups {
+		if latest == nil {
+			latest = backup.DeepCopy()
+		} else {
+			if backup.Backup.Status.CompletionTimestamp != nil {
+				if latest.Status.CompletionTimestamp.Before(backup.Status.CompletionTimestamp) {
+					latest = backup.DeepCopy()
+				}
+			}
 		}
 	}
 
-	return tenant, env
+	// Check the time and see if < 24h
+	if latest != nil {
+		latestBackup := NewVeleroBackup(latest, true)
+		if timestamp := latestBackup.Status.CompletionTimestamp; timestamp != nil {
+			if diff := time.Since(timestamp.Time).Hours(); diff <= 24.0 {
+				// Check the backup status
+				if latestBackup.HealthReport.Healthy != StatusHealthy {
+					report.AddWarning(fmt.Sprintf("The latest backup has the status: %s", latestBackup.Status.Phase))
+				}
+			} else {
+				report.AddWarning(fmt.Sprintf("The latest backup is %d days old", int(diff/24)))
+			}
+		}
+	} else {
+		report.AddWarning("No recent Velero backups found.")
+	}
+
+	/*
+		// Check Services
+		if services, err := Services(namespace.Name).List(labels.Everything()); err == nil {
+			unhealthyServices := make([]string, 0, len(services))
+			for _, service := range services {
+				report := ReportForService(*service)
+				if report.Healthy != models.StatusHealthy {
+					unhealthyServices = append(unhealthyServices, service.Name)
+				}
+			}
+			if len(unhealthyServices) > 0 {
+				nsreport.Healthy = models.StatusUnhealthy
+				nsreport.Errors = append(nsreport.Errors, fmt.Sprintf("Services with unhealthy status: [%s].", strings.Join(unhealthyServices, ",")))
+			}
+		} else {
+			nsreport.Errors = append(nsreport.Errors, "Failed to fetch Services from Kubernetes.")
+		}
+	*/
+
+	// If nobody said we're unhealthy, that must mean we are health, right?
+	report.FailHealthy()
+
+	ns.HealthReport = report
 }

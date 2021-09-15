@@ -12,54 +12,66 @@ type ResourceQuantities struct {
 	Utilized    resource.Quantity `json:"utilized"`
 }
 
-type Node struct {
-	Name           string             `json:"name"`
-	Healthy        HealthyStatus      `json:"healthy"`
-	Errors         []string           `json:"errors,omitempty"`
-	Conditions     []string           `json:"conditions,omitempty"`
-	KernelVersion  string             `json:"kernel_version,omitempty"`
-	KubeletVersion string             `json:"kubelet_version,omitempty"`
-	CPU            ResourceQuantities `json:"cpu"`
-	Memory         ResourceQuantities `json:"memory"`
+type NodeResources struct {
+	CPU    ResourceQuantities `json:"cpu"`
+	Memory ResourceQuantities `json:"memory"`
 }
 
-func FromK8Node(node corev1.Node) Node {
-	var (
-		report     HealthReport
-		conditions = make([]string, 0, len(node.Status.Conditions))
-	)
+type Node struct {
+	corev1.Node  `json:",inline"`
+	HealthReport HealthReport  `json:"health"`
+	Conditions   []string      `json:"conditions"`
+	Resources    NodeResources `json:"resources"`
+}
 
-	// Get health report
-	report = HealthReportForNode(node)
-
-	// Get node conditions
-	for _, condition := range node.Status.Conditions {
+func NewNode(raw *corev1.Node, checkHealth bool) Node {
+	conditions := make([]string, 0, len(raw.Status.Conditions))
+	for _, condition := range raw.Status.Conditions {
 		if condition.Status == corev1.ConditionTrue {
 			conditions = append(conditions, string(condition.Type))
 		}
 	}
 
-	return Node{
-		Name:           node.Name,
-		Healthy:        report.Healthy,
-		Errors:         report.Errors,
-		Conditions:     conditions,
-		KernelVersion:  node.Status.NodeInfo.KernelVersion,
-		KubeletVersion: node.Status.NodeInfo.KubeletVersion,
-		CPU: ResourceQuantities{
-			Allocatable: node.Status.Allocatable["cpu"],
-		},
-		Memory: ResourceQuantities{
-			Allocatable: node.Status.Allocatable["memory"],
-		},
+	node := Node{
+		Node:         *raw,
+		HealthReport: HealthReport{},
+		Conditions:   conditions,
 	}
+
+	if checkHealth {
+		node.CheckHealth()
+	}
+
+	return node
 }
 
 func (n *Node) AddMetrics(metrics metricsv1beta1.NodeMetrics) {
 	if usage, ok := metrics.Usage["cpu"]; ok {
-		n.CPU.Utilized = usage
+		n.Resources.CPU.Utilized = usage
 	}
 	if usage, ok := metrics.Usage["memory"]; ok {
-		n.Memory.Utilized = usage
+		n.Resources.Memory.Utilized = usage
 	}
+}
+
+func (n *Node) CheckHealth() {
+	report := NewHealthReport()
+
+	for _, condition := range n.Status.Conditions {
+		switch condition.Type {
+		case corev1.NodeReady:
+			if condition.Status != corev1.ConditionTrue {
+				report.AddError(condition.Message)
+			}
+		default:
+			if condition.Status != corev1.ConditionFalse {
+				report.AddError(condition.Message)
+			}
+		}
+	}
+
+	// If nobody said we're unhealthy, that must mean we are health, right?
+	report.FailHealthy()
+
+	n.HealthReport = report
 }

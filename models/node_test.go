@@ -9,7 +9,7 @@ import (
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 
 	"github.com/stretchr/testify/assert"
-	. "github.com/zanloy/bms-api/models"
+	"github.com/zanloy/bms-api/models"
 )
 
 var (
@@ -37,6 +37,14 @@ var (
 		},
 	}
 
+	healthyReport = models.HealthReport{
+		Timestamp: 0,
+		Healthy:   models.StatusHealthy,
+		Errors:    make([]string, 0),
+		Warnings:  make([]string, 0),
+		Alerts:    make([]string, 0),
+	}
+
 	metrics1m1Mi = metricsv1beta1.NodeMetrics{
 		Usage: corev1.ResourceList{
 			corev1.ResourceCPU:    *resource.NewQuantity(1, resource.DecimalSI),
@@ -45,38 +53,34 @@ var (
 	}
 )
 
-func TestFromK8Node(t *testing.T) {
+func TestNewNode(t *testing.T) {
 	testCases := []struct {
 		desc     string
 		input    corev1.Node
-		expected Node
+		expected models.Node
 	}{{
 		desc:  "with a healthy node",
 		input: healthyNode,
-		expected: Node{
-			Name:           "healthy-node",
-			Healthy:        StatusHealthy,
-			Conditions:     []string{"Ready"},
-			KernelVersion:  "1",
-			KubeletVersion: "1",
-			CPU: ResourceQuantities{
-				Allocatable: *resource.NewQuantity(8, resource.DecimalSI),
-			},
-			Memory: ResourceQuantities{
-				Allocatable: *resource.NewQuantity(16, resource.BinarySI),
-			},
+		expected: models.Node{
+			Node:         healthyNode,
+			HealthReport: healthyReport,
+			Conditions:   []string{"Ready"},
+			Resources:    models.NodeResources{},
 		},
 	}}
 
 	for _, testCase := range testCases {
-		result := FromK8Node(testCase.input)
+		result := models.NewNode(&testCase.input, true)
+		//assert.Equal(t, genComparable(testCase.expected), genComparable(result), testCase.desc)
+		// We zero out timestamp to prevent failed assertion due to a timestamp.
+		result.HealthReport.Timestamp = 0
 		assert.Equal(t, testCase.expected, result, testCase.desc)
 	}
 }
 
 func TestAddMetrics(t *testing.T) {
-	node := FromK8Node(healthyNode)
+	node := models.NewNode(&healthyNode, true)
 	node.AddMetrics(metrics1m1Mi)
-	assert.Equal(t, "1", node.CPU.Utilized.String())
-	assert.Equal(t, "1Mi", node.Memory.Utilized.String())
+	assert.Equal(t, "1", node.Status.Allocatable[corev1.ResourceCPU])
+	assert.Equal(t, "1Mi", node.Status.Allocatable[corev1.ResourceMemory])
 }

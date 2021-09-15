@@ -1,6 +1,7 @@
 package router
 
 import (
+	"net/http"
 	"os"
 
 	ginlogger "github.com/gin-contrib/logger"
@@ -34,43 +35,58 @@ func SetupRouter() *gin.Engine {
 		namespaceCtl = new(controllers.NamespaceController)
 		nodeCtl      = new(controllers.NodeController)
 		podCtl       = new(controllers.PodController)
-		reportCtl    = new(controllers.ReportController)
 		urlCtl       = new(controllers.URLController)
+		veleroCtl    = new(controllers.VeleroController)
 	)
 
 	/* Setup routes */
 	router.GET("/ping", func(ctx *gin.Context) { // For our own health checks
-		ctx.JSON(200, gin.H{
-			"message": "pong",
-		})
+		ctx.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
 
-	healthGrp := router.Group("/health")
+	socketGrp := router.Group("/ws")
 	{
-		healthGrp.GET("/namespaces", namespaceCtl.GetAllHealth)
-		healthGrp.GET("/namespaces/ws", namespaceCtl.WatchHealth)
-		healthGrp.GET("/nodes", nodeCtl.GetAllHealth)
-		healthGrp.GET("/nodes/ws", nodeCtl.WatchHealth)
-		healthGrp.GET("/pods", podCtl.GetAllHealth)
-		healthGrp.GET("/pods/ws", podCtl.WatchHealth)
-		healthGrp.GET("/urls", urlCtl.GetAll)
-		healthGrp.GET("/urls/ws", urlCtl.WatchHealth)
 		// This endpoint has no filter and will notify on all health updates
-		healthGrp.GET("/ws", func(ctx *gin.Context) {
+		socketGrp.GET("/", func(ctx *gin.Context) {
 			kubernetes.HealthUpdates.HandleRequest(ctx.Writer, ctx.Request)
+			//wsrouter.HandleRequest("all", ctx.Writer, ctx.Request)
+		})
+		socketGrp.GET("/namespaces", namespaceCtl.WatchNamespace)
+		socketGrp.GET("/ns", namespaceCtl.WatchNamespace)
+		socketGrp.GET("/nodes", nodeCtl.WatchNodes)
+		socketGrp.GET("/urls", func(ctx *gin.Context) {
+			kubernetes.HealthUpdates.HandleRequestWithKeys(ctx.Writer, ctx.Request, map[string]interface{}{"kind": "url"})
 		})
 	}
 
 	//router.GET("/namespaces", namespaceCtl.GetAll) // Get all namespaces
 	namespaceGrp := router.Group("/ns")
 	{
-		namespaceGrp.GET("/:name", namespaceCtl.GetNS)
+		namespaceGrp.GET("/", namespaceCtl.GetNamespaces)
+		namespaceGrp.GET("/:name", namespaceCtl.GetNamespace)
+		namespaceGrp.GET("/:name/pods", namespaceCtl.GetPods)
+		namespaceGrp.GET("/:name/ws", namespaceCtl.WatchNamespace)
 	}
 
-	router.GET("/report", reportCtl.Create)
-	reportsGrp := router.Group("/reports")
+	nodeGrp := router.Group("/nodes")
 	{
-		reportsGrp.GET("/create", reportCtl.Create)
+		nodeGrp.GET("/", nodeCtl.GetNodes)
+		nodeGrp.GET("/:name", nodeCtl.GetNode)
+	}
+
+	router.GET("/pods", podCtl.GetPods)
+
+	urlGrp := router.Group("/urls")
+	{
+		urlGrp.GET("/", urlCtl.GetURLs)
+	}
+
+	veleroGrp := router.Group("/velero")
+	{
+		veleroGrp.GET("/backups", veleroCtl.GetBackups)
+		veleroGrp.GET("/backups/:namespace", veleroCtl.GetBackups)
+		veleroGrp.GET("/schedules", veleroCtl.GetSchedules)
+		veleroGrp.GET("/schedules/:namespace", veleroCtl.GetSchedules)
 	}
 
 	logger.Debug().Msg("Router successfully initialized.")

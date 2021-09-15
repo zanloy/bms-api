@@ -1,36 +1,45 @@
 package models
 
 import (
+	"fmt"
+
 	appsv1 "k8s.io/api/apps/v1"
 )
 
 type StatefulSet struct {
-	Name        string        `json:"name"`
-	Namespace   string        `json:"namespace"`
-	Tenant      string        `json:"tenant,omitempty"`
-	Environment string        `json:"environment,omitempty"`
-	Healthy     HealthyStatus `json:"healthy"`
-	Errors      []string      `json:"errors,omitempty"`
+	appsv1.StatefulSet `json:",inline"`
+	TenantInfo         TenantInfo   `json:"tenant"`
+	HealthReport       HealthReport `json:"health"`
 }
 
-func FromK8StatefulSet(statefulset appsv1.StatefulSet) StatefulSet {
-	var (
-		report              HealthReport
-		tenant, environment string
-	)
-
-	// Get tenant info
-	tenant, environment = parseTenantAndEnv(statefulset.Namespace)
-
-	// Get health report
-	report = HealthReportForStatefulSet(statefulset)
-
-	return StatefulSet{
-		Name:        statefulset.Name,
-		Namespace:   statefulset.Namespace,
-		Tenant:      tenant,
-		Environment: environment,
-		Healthy:     report.Healthy,
-		Errors:      report.Errors,
+func NewStatefulSet(raw *appsv1.StatefulSet, checkHealth bool) StatefulSet {
+	ss := StatefulSet{
+		StatefulSet:  *raw,
+		TenantInfo:   ParseTenantInfo(raw.Namespace),
+		HealthReport: HealthReport{},
 	}
+
+	if checkHealth {
+		ss.CheckHealth()
+	}
+
+	return ss
+}
+
+func (ss *StatefulSet) CheckHealth() {
+	report := NewHealthReport()
+
+	if int32(*ss.Spec.Replicas) != int32(ss.Status.ReadyReplicas) {
+		msg := fmt.Sprintf("The number of desired replicas [%d] does not match the number of ready replicas [%d].", *ss.Spec.Replicas, ss.Status.ReadyReplicas)
+		if int32(ss.Status.ReadyReplicas) == 0 {
+			report.AddError(msg)
+		} else {
+			report.AddWarning(msg)
+		}
+	}
+
+	// If nobody said we're unhealthy, that must mean we are health, right?
+	report.FailHealthy()
+
+	ss.HealthReport = report
 }

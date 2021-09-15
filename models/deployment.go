@@ -1,36 +1,50 @@
 package models
 
 import (
+	"fmt"
+
+	corev1 "k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 )
 
 type Deployment struct {
-	Name        string        `json:"name"`
-	Namespace   string        `json:"namespace"`
-	Tenant      string        `json:"tenant,omitempty"`
-	Environment string        `json:"environment,omitempty"`
-	Healthy     HealthyStatus `json:"healthy"`
-	Errors      []string      `json:"errors,omitempty"`
+	extensionsv1beta1.Deployment `json:",inline"`
+	TenantInfo                   TenantInfo   `json:"tenant"`
+	HealthReport                 HealthReport `json:"health"`
 }
 
-func FromK8Deployment(deployment extensionsv1beta1.Deployment) Deployment {
-	var (
-		report              HealthReport
-		tenant, environment string
-	)
-
-	// Get tenant info
-	tenant, environment = parseTenantAndEnv(deployment.Namespace)
-
-	// Get health report
-	report = HealthReportForDeployment(deployment)
-
-	return Deployment{
-		Name:        deployment.Name,
-		Namespace:   deployment.Namespace,
-		Tenant:      tenant,
-		Environment: environment,
-		Healthy:     report.Healthy,
-		Errors:      report.Errors,
+func NewDeployment(raw *extensionsv1beta1.Deployment, checkHealth bool) Deployment {
+	deployment := Deployment{
+		Deployment:   *raw,
+		TenantInfo:   ParseTenantInfo(raw.Namespace),
+		HealthReport: HealthReport{},
 	}
+
+	if checkHealth {
+		deployment.CheckHealth()
+	}
+
+	return deployment
+}
+
+func (d *Deployment) CheckHealth() {
+	report := NewHealthReport()
+
+	for _, condition := range d.Status.Conditions {
+		if condition.Type == extensionsv1beta1.DeploymentAvailable && condition.Status == corev1.ConditionFalse {
+			// K8 states Availability as binary and I want to be able to have Warn/Yellow
+			// so I check the replicas to see if we have any vs 0.
+			msg := fmt.Sprintf("The number of desired pods [%v] does not match the number of ready pods [%v].", *d.Spec.Replicas, d.Status.ReadyReplicas)
+			if d.Status.ReadyReplicas == 0 {
+				report.AddError(msg)
+			} else {
+				report.AddWarning(msg)
+			}
+		}
+	}
+
+	// If nobody said we're unhealthy, that must mean we are health, right?
+	report.FailHealthy()
+
+	d.HealthReport = report
 }

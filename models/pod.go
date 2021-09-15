@@ -1,34 +1,49 @@
 package models
 
-import corev1 "k8s.io/api/core/v1"
+import (
+	corev1 "k8s.io/api/core/v1"
+)
 
 type Pod struct {
-	Name        string        `json:"name"`
-	Namespace   string        `json:"namespace"`
-	Tenant      string        `json:"tenant,omitempty"`
-	Environment string        `json:"environment,omitempty"`
-	Healthy     HealthyStatus `json:"healthy"`
-	Errors      []string      `json:"errors,omitempty"`
+	corev1.Pod   `json:",inline"`
+	TenantInfo   TenantInfo   `json:"tenant"`
+	HealthReport HealthReport `json:"health"`
 }
 
-func FromK8Pod(pod corev1.Pod) Pod {
-	var (
-		report              HealthReport
-		tenant, environment string
-	)
-
-	// Get tenant info
-	tenant, environment = parseTenantAndEnv(pod.Namespace)
-
-	// Get health report
-	report = HealthReportForPod(pod)
-
-	return Pod{
-		Name:        pod.Name,
-		Namespace:   pod.Namespace,
-		Tenant:      tenant,
-		Environment: environment,
-		Healthy:     report.Healthy,
-		Errors:      report.Errors,
+func NewPod(raw *corev1.Pod, checkHealth bool) Pod {
+	pod := Pod{
+		Pod:          *raw,
+		TenantInfo:   ParseTenantInfo(raw.Namespace),
+		HealthReport: HealthReport{},
 	}
+
+	if checkHealth {
+		pod.CheckHealth()
+	}
+
+	return pod
+}
+
+func (p *Pod) CheckHealth() {
+	report := NewHealthReport()
+
+	for name, value := range p.Labels {
+		if name == "jenkins" && value == "slave" {
+			// This pod is part of a jenkins job
+			report.Healthy = StatusIgnored
+		}
+	}
+
+	if report.Healthy != StatusIgnored && p.Status.Phase != corev1.PodSucceeded {
+		for _, condition := range p.Status.Conditions {
+			if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionFalse {
+				report.AddError(condition.Message)
+			}
+		}
+	}
+
+	// If nobody said we're unhealthy, that must mean we are health, right?
+	report.FailHealthy()
+
+	p.HealthReport = report
 }

@@ -16,6 +16,7 @@ func genNamespace(name string) *corev1.Namespace {
 	return &corev1.Namespace{
 		TypeMeta:   metav1.TypeMeta{Kind: "Namespace"},
 		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Status:     corev1.NamespaceStatus{Phase: corev1.NamespaceActive},
 	}
 }
 

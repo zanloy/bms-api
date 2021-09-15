@@ -1,7 +1,6 @@
 package kubernetes // import github.com/zanloy/bms-api/kubernetes
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,15 +8,17 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	veleroclient "github.com/vmware-tanzu/velero/pkg/client"
+	veleroclientset "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	veleroinformers "github.com/vmware-tanzu/velero/pkg/generated/informers/externalversions"
+	"github.com/zanloy/bms-api/helpers"
 	"gopkg.in/olahol/melody.v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	ogkubernetes "k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 )
@@ -26,35 +27,28 @@ import (
 type KubernetesError error
 
 var (
-	ConfigNotFoundError    KubernetesError = fmt.Errorf("kubernetes config file missing.")
-	NamespaceNotFoundError KubernetesError = fmt.Errorf("failed to find namespace")
-	TypeCastError          KubernetesError = fmt.Errorf("failed to typecast object")
+	ErrConfigNotFound    KubernetesError = fmt.Errorf("kubernetes config file missing")
+	ErrNamespaceNotFound KubernetesError = fmt.Errorf("failed to find namespace")
+	ErrTypeCast          KubernetesError = fmt.Errorf("failed to typecast object")
 )
 
 /* Package scoped variables */
 var (
-	logger        zerolog.Logger
-	Clientset     ogkubernetes.Interface
-	Config        *rest.Config
-	Factory       informers.SharedInformerFactory
+	logger          zerolog.Logger
+	Clientset       ogkubernetes.Interface
+	Config          *rest.Config
+	Factory         informers.SharedInformerFactory
+	VeleroClientset veleroclientset.Interface
+	VeleroConfig    veleroclient.VeleroConfig
+	VeleroFactory   veleroinformers.SharedInformerFactory
+
 	HealthUpdates = melody.New()
 	stopCh        <-chan struct{}
-	tenants       = map[string][]string{} // Key is tenant name, value is envs
 )
-
-func FileExists(filename string) bool {
-	filename = os.ExpandEnv(filename)
-	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return !info.IsDir()
-}
 
 func Init(kubeconfig string) (err error) {
 	// Setup logger
 	logger = log.With().
-		Timestamp().
 		Str("component", "kubernetes").
 		Logger()
 
@@ -69,7 +63,7 @@ func Init(kubeconfig string) (err error) {
 		}
 	}
 
-	if FileExists(kubeconfig) {
+	if helpers.FileExists(kubeconfig) {
 		logger.Debug().Msg(fmt.Sprintf("Found kubeconfig at %s, attempting to load it.", kubeconfig))
 		Config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err != nil {
@@ -88,6 +82,10 @@ func Init(kubeconfig string) (err error) {
 		return err
 	}
 
+	// Load Velero config (default: ~/.config/velero/config.json)
+	VeleroConfig, _ = veleroclient.LoadConfig()
+	VeleroClientset, _ = veleroclient.NewFactory("bms", VeleroConfig).Client()
+
 	logger.Debug().Msg("Kubernetes initilization complete.")
 	return nil
 }
@@ -101,17 +99,20 @@ func Start(stopChannel <-chan struct{}) {
 	stopCh = stopChannel
 
 	/* Setup cache and informers */
-	Factory = informers.NewSharedInformerFactory(Clientset, time.Minute*5)
+	Factory = informers.NewSharedInformerFactory(Clientset, 0)
+
+	/* Setup velero informer */
+	VeleroFactory = veleroinformers.NewSharedInformerFactory(VeleroClientset, 0)
+
 	setupInformers()
-	go Factory.Start(stopCh)
+	Factory.Start(stopCh)
+	VeleroFactory.Start(stopCh)
 
 	// TODO: Add a timeout to this.
-	/* Wait for cache to sync */
-	logger.Info().Msg("Waiting for cache to sync...")
+	logger.Info().Msg("Waiting for informer cache to sync...")
 	startTime := time.Now()
-	result := Factory.WaitForCacheSync(stopCh)
-	fmt.Printf("result = %+v\n", result)
-	logger.Info().Msg(fmt.Sprintf("Cache sync completed [%.2fs].", time.Since(startTime).Seconds()))
+	Factory.WaitForCacheSync(stopCh)
+	logger.Info().Msg(fmt.Sprintf("Informer cache sync completed. [%.2fs]", time.Since(startTime).Seconds()))
 
 	logger.Info().Msg("Kubernetes controller startup complete.")
 }
@@ -147,54 +148,7 @@ func NamespacesArray() (namespaces []string, err error) {
 	return
 }
 
-func VeleroBackups() (backups *velerov1.BackupList, err error) {
-	backups = &velerov1.BackupList{}
-
-	// Load Velero config (default: ~/.config/velero/config.json)
-	veleroConfig, err := veleroclient.LoadConfig()
-
-	// Use the Velero factory to build our velero objs.
-	// TODO: Analyze if this could be used for the entire package since it builds for k8 and velero
-	f := veleroclient.NewFactory("get", veleroConfig)
-
-	// Create veleroClient
-	veleroClient, err := f.Client()
-	if err != nil {
-		return
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Get backups
-	backups, err = veleroClient.VeleroV1().Backups(f.Namespace()).List(ctx, metav1.ListOptions{})
-
-	// Return our results/error
-	return
-}
-
-func VeleroSchedules() (schedules *velerov1.ScheduleList, err error) {
-	schedules = &velerov1.ScheduleList{}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Load Velero config (default: ~/.config/velero/config.json)
-	veleroConfig, err := veleroclient.LoadConfig()
-
-	// Use the Velero factory to build our velero objs.
-	// TODO: Analyze if this could be used for the entire package since it builds for k8 and velero
-	f := veleroclient.NewFactory("get", veleroConfig)
-
-	// Create veleroClient
-	veleroClient, err := f.Client()
-	if err != nil {
-		return
-	}
-
-	// Get schedules
-	schedules, err = veleroClient.VeleroV1().Schedules(f.Namespace()).List(ctx, metav1.ListOptions{})
-
-	// Return our results/error
-	return
+// Check is cache is synced
+func WaitForCacheSync() {
+	cache.WaitForCacheSync(stopCh, Factory.Core().V1().Namespaces().Informer().HasSynced)
 }
