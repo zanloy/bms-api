@@ -20,6 +20,8 @@ func NewDeployment(raw *extensionsv1beta1.Deployment, checkHealth bool) Deployme
 		HealthReport: HealthReport{},
 	}
 
+	deployment.Kind = "Deployment"
+
 	if checkHealth {
 		deployment.CheckHealth()
 	}

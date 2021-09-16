@@ -26,6 +26,8 @@ func NewServiceWithPods(raw *corev1.Service, pods []Pod, checkHealth bool) Servi
 		Pods:         pods,
 	}
 
+	service.Kind = "Service"
+
 	if checkHealth {
 		service.CheckHealth()
 	}

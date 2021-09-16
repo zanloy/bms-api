@@ -19,11 +19,11 @@ type Filter struct {
 // This is the structure of our bms-api config file and will be used to
 // marshal our config file.
 type Config struct {
-	Namespace         string     `json:"namespace"`
-	Filters           []Filter   `json:"filters,omitempty"`
-	Urls              []URLCheck `json:"urls,omitempty"`
-	Environments      []string   `json:"environments,omitempty"`
-	NotificationDelay string     `json:"notification_delay"`
+	Namespace         string         `json:"namespace"`
+	Filters           []Filter       `json:"filters,omitempty"`
+	Urls              []URLCheckMeta `json:"urls,omitempty"`
+	Environments      []string       `json:"environments,omitempty"`
+	NotificationDelay string         `json:"notification_delay"`
 }
 
 func (config *Config) ShouldNotify(kind string, name string, namespace string) (result bool) {

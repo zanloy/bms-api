@@ -68,7 +68,7 @@ func main() {
 	kubernetes.Start(stopCh)
 
 	/* Setup URL checker */
-	go url.Start(config.Config.Urls, stopCh)
+	go url.Start(stopCh)
 
 	/* Setup router */
 	router := router.SetupRouter()

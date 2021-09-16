@@ -1,4 +1,9 @@
-package config
+package config // import "github.com/zanloy/bms-api/config"
+
+/*
+	This package is responsible for monitoring the config file and updating the
+	various elements of the bms-api application.
+*/
 
 import (
 	"fmt"
@@ -49,6 +54,7 @@ func Load() {
 	viper.OnConfigChange(reload)
 
 	// Tell other components to load resources from Config
+	url.Load(Config.Urls)
 	wsrouter.LoadFilters(Config.Filters)
 
 	// Celebrate!
@@ -59,9 +65,9 @@ func reload(e fsnotify.Event) {
 	logger.Info().Msg("Config file changed. Reloading...")
 	var newconfig = models.Config{}
 	if err := viper.Unmarshal(&newconfig); err == nil {
-		Config = newconfig
-		url.Reload(Config.Urls) // Reload our url checks
-		//wsrouter.LoadFilters(Config.Filters)
+		Config = newconfig    // Replace old config
+		url.Load(Config.Urls) // Reload our url checks
+		wsrouter.LoadFilters(Config.Filters)
 	} else {
 		logger.Err(err).Msg("Failed to parse config file. Retaining previous config.")
 	}

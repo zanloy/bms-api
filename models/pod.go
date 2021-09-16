@@ -17,6 +17,8 @@ func NewPod(raw *corev1.Pod, checkHealth bool) Pod {
 		HealthReport: HealthReport{},
 	}
 
+	pod.Kind = "Pod"
+
 	if checkHealth {
 		pod.CheckHealth()
 	}

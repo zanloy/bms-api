@@ -10,7 +10,7 @@ import (
 type NamespaceController struct{}
 
 func (ctl *NamespaceController) GetNamespace(ctx *gin.Context) {
-	if ns, err := kubernetes.GetNamespace(ctx.Param("name")); err == nil {
+	if ns, err := kubernetes.GetNamespaceWithEvents(ctx.Param("name")); err == nil {
 		ctx.JSON(http.StatusOK, ns)
 	} else {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err})
@@ -18,10 +18,10 @@ func (ctl *NamespaceController) GetNamespace(ctx *gin.Context) {
 }
 
 func (ctl *NamespaceController) GetNamespaces(ctx *gin.Context) {
-	if results, err := kubernetes.GetNamespaces(); err == nil {
+	if results, errs := kubernetes.GetNamespaces(); len(errs) == 0 {
 		ctx.JSON(http.StatusOK, results)
 	} else {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": errs})
 	}
 }
 

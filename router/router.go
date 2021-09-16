@@ -35,6 +35,7 @@ func SetupRouter() *gin.Engine {
 		namespaceCtl = new(controllers.NamespaceController)
 		nodeCtl      = new(controllers.NodeController)
 		podCtl       = new(controllers.PodController)
+		reportCtl    = new(controllers.ReportController)
 		urlCtl       = new(controllers.URLController)
 		veleroCtl    = new(controllers.VeleroController)
 	)
@@ -76,6 +77,7 @@ func SetupRouter() *gin.Engine {
 
 	router.GET("/pods", podCtl.GetPods)
 
+	router.GET("/report", reportCtl.Create)
 	urlGrp := router.Group("/urls")
 	{
 		urlGrp.GET("/", urlCtl.GetURLs)

@@ -9,16 +9,7 @@ import (
 	. "github.com/zanloy/bms-api/models"
 )
 
-var jsonPayload = `{
-	"booltrue": true,
-	"boolfalse": false,
-	"integer": 1269,
-  "string": "healthy",
-	"nested": {
-		"light.color": "green",
-		"nil": null
-	}
-}`
+var jsonPayload = `{ "booltrue": true, "boolfalse": false, "integer": 1269, "string": "healthy", "nested": { "light.color": "green", "nil": null } }`
 
 var urls = map[string]string{
 	"200":            "http://test.test/200",
@@ -65,13 +56,13 @@ func TestCheck(t *testing.T) {
 
 	testCases := []struct {
 		desc    string
-		subj    URLCheck
+		subj    URLCheckMeta
 		healthy HealthyStatus
 		text    string
 		errors  bool
 	}{{
 		desc: "when expecting a connection error",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name: "connerr",
 			Url:  "http://connection.failure/",
 		},
@@ -79,7 +70,7 @@ func TestCheck(t *testing.T) {
 		errors:  true,
 	}, {
 		desc: "when result is 200",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name: "test200",
 			Url:  urls["200"],
 		},
@@ -87,7 +78,7 @@ func TestCheck(t *testing.T) {
 		text:    "200",
 	}, {
 		desc: "when result fails on 200",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:     "fail200",
 			Url:      urls["200"],
 			FailTrue: true,
@@ -96,7 +87,7 @@ func TestCheck(t *testing.T) {
 		text:    "200",
 	}, {
 		desc: "when result is 404",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name: "test404",
 			Url:  urls["404"],
 		},
@@ -104,7 +95,7 @@ func TestCheck(t *testing.T) {
 		text:    "404",
 	}, {
 		desc: "when expected response if 404",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:   "expect404",
 			Url:    urls["404"],
 			RegExp: "404",
@@ -113,7 +104,7 @@ func TestCheck(t *testing.T) {
 		text:    "404",
 	}, {
 		desc: "when checking json with nil path",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:   "jsonnopath",
 			Url:    urls["200json"],
 			Type:   RespTypeJSON,
@@ -123,7 +114,7 @@ func TestCheck(t *testing.T) {
 		errors:  true,
 	}, {
 		desc: "when checking json with invalid path",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:     "jsoninvalidpath",
 			Url:      urls["200json"],
 			Type:     RespTypeJSON,
@@ -133,7 +124,7 @@ func TestCheck(t *testing.T) {
 		errors:  true,
 	}, {
 		desc: "when checking json with invalid regexp",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:     "jsoninvalidre",
 			Url:      urls["200json"],
 			Type:     RespTypeJSON,
@@ -145,7 +136,7 @@ func TestCheck(t *testing.T) {
 		errors:  true,
 	}, {
 		desc: "when checking json with invalid json in response body",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:     "jsoninvalidresp",
 			Url:      urls["200invalidjson"],
 			Type:     RespTypeJSON,
@@ -156,7 +147,7 @@ func TestCheck(t *testing.T) {
 		errors:  true,
 	}, {
 		desc: "when checking json with valid path but nil regexp",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:     "jsonnore",
 			Url:      urls["200json"],
 			Type:     RespTypeJSON,
@@ -166,7 +157,7 @@ func TestCheck(t *testing.T) {
 		text:    "healthy",
 	}, {
 		desc: "when checking json string value",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:     "jsonstr",
 			Url:      urls["200json"],
 			Type:     RespTypeJSON,
@@ -177,7 +168,7 @@ func TestCheck(t *testing.T) {
 		text:    "healthy",
 	}, {
 		desc: "when checking json true bool value",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:     "jsonbool",
 			Url:      urls["200json"],
 			Type:     RespTypeJSON,
@@ -188,7 +179,7 @@ func TestCheck(t *testing.T) {
 		text:    "true",
 	}, {
 		desc: "when checking json bool value for !true",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:     "jsonbool",
 			Url:      urls["200json"],
 			Type:     RespTypeJSON,
@@ -200,7 +191,7 @@ func TestCheck(t *testing.T) {
 		text:    "false",
 	}, {
 		desc: "when checking json int value",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:     "jsonint",
 			Url:      urls["200json"],
 			Type:     RespTypeJSON,
@@ -211,7 +202,7 @@ func TestCheck(t *testing.T) {
 		text:    "1269",
 	}, {
 		desc: "when checking nested json value",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:     "nestedjson",
 			Url:      urls["200json"],
 			Type:     RespTypeJSON,
@@ -222,7 +213,7 @@ func TestCheck(t *testing.T) {
 		text:    "green",
 	}, {
 		desc: "when checking json map value",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:     "jsonmap",
 			Url:      urls["200json"],
 			Type:     RespTypeJSON,
@@ -232,7 +223,7 @@ func TestCheck(t *testing.T) {
 		errors:  true,
 	}, {
 		desc: "when checking http body and nil regexp",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name: "bodynore",
 			Url:  urls["200"],
 			Type: RespTypeHTTPBody,
@@ -241,7 +232,7 @@ func TestCheck(t *testing.T) {
 		errors:  true,
 	}, {
 		desc: "when checking http body expecting a match",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:   "bodymatch",
 			Url:    urls["200"],
 			Type:   RespTypeHTTPBody,
@@ -251,7 +242,7 @@ func TestCheck(t *testing.T) {
 		text:    "healthy",
 	}, {
 		desc: "when checking http body expecting no match",
-		subj: URLCheck{
+		subj: URLCheckMeta{
 			Name:   "bodyunmatched",
 			Url:    urls["200"],
 			Type:   RespTypeHTTPBody,
@@ -262,15 +253,18 @@ func TestCheck(t *testing.T) {
 	}}
 
 	for _, testcase := range testCases {
-		testcase.subj.Check()
+		testcheck := URLCheck{
+			Meta: testcase.subj,
+		}
+		testcheck.Check()
 
 		if testcase.errors {
-			assert.NotEmpty(t, testcase.subj.Errors, fmt.Sprintf("No errors occurred %s", testcase.desc))
+			assert.NotEmpty(t, testcheck.HealthReport.Errors, fmt.Sprintf("No errors occurred %s", testcase.desc))
 		} else {
-			assert.Empty(t, testcase.subj.Errors, fmt.Sprintf("Errors occurred %s", testcase.desc))
+			assert.Empty(t, testcheck.HealthReport.Errors, fmt.Sprintf("Errors occurred %s", testcase.desc))
 		}
-		assert.Equal(t, testcase.healthy, testcase.subj.Healthy, fmt.Sprintf("Healthy assertion fails %s", testcase.desc))
-		assert.Equal(t, testcase.text, testcase.subj.Text, fmt.Sprintf("Text assertion fails %s", testcase.desc))
+		assert.Equal(t, testcase.healthy, testcheck.HealthReport.Healthy, fmt.Sprintf("Healthy assertion fails %s", testcase.desc))
+		assert.Equal(t, testcase.text, testcheck.HealthReport.Text, fmt.Sprintf("Text assertion fails %s", testcase.desc))
 	}
 
 	// Finally we do a one-off test if RestClient isn't initialized for some reason.
@@ -279,5 +273,5 @@ func TestCheck(t *testing.T) {
 
 	check.Check()
 
-	assert.NotEmpty(t, check.Errors, "We should error if RestyClient is nil.")
+	assert.NotEmpty(t, check.HealthReport.Errors, "We should error if RestyClient is nil.")
 }

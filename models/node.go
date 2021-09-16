@@ -10,6 +10,7 @@ type ResourceQuantities struct {
 	Allocatable resource.Quantity `json:"allocatable"`
 	Allocated   resource.Quantity `json:"allocated"`
 	Utilized    resource.Quantity `json:"utilized"`
+	Percentage  uint8             `json:"percentage"`
 }
 
 type NodeResources struct {
@@ -38,6 +39,11 @@ func NewNode(raw *corev1.Node, checkHealth bool) Node {
 		Conditions:   conditions,
 	}
 
+	node.Kind = "Node"
+
+	node.Resources.CPU.Allocatable = node.Status.Allocatable["cpu"]
+	node.Resources.Memory.Allocatable = node.Status.Allocatable["memory"]
+
 	if checkHealth {
 		node.CheckHealth()
 	}
@@ -45,12 +51,14 @@ func NewNode(raw *corev1.Node, checkHealth bool) Node {
 	return node
 }
 
-func (n *Node) AddMetrics(metrics metricsv1beta1.NodeMetrics) {
+func (n *Node) AddMetrics(metrics *metricsv1beta1.NodeMetrics) {
 	if usage, ok := metrics.Usage["cpu"]; ok {
 		n.Resources.CPU.Utilized = usage
+		n.Resources.CPU.Percentage = uint8(n.Resources.CPU.Utilized.AsApproximateFloat64() / n.Resources.CPU.Allocatable.AsApproximateFloat64() * 100)
 	}
 	if usage, ok := metrics.Usage["memory"]; ok {
 		n.Resources.Memory.Utilized = usage
+		n.Resources.Memory.Percentage = uint8(n.Resources.Memory.Utilized.AsApproximateFloat64() / n.Resources.Memory.Allocatable.AsApproximateFloat64() * 100)
 	}
 }
 

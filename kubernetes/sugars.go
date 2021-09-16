@@ -27,13 +27,11 @@ func Core() informersv1.Interface {
 
 // Returns a lister interface for daemonsets.
 func DaemonSets(namespace string) listersv1beta1.DaemonSetNamespaceLister {
-	mustBeInitialized()
 	return Extensions().DaemonSets().Lister().DaemonSets(namespace)
 }
 
 // Returns a lister interface for deployments.
 func Deployments(namespace string) listersv1beta1.DeploymentNamespaceLister {
-	mustBeInitialized()
 	return Extensions().Deployments().Lister().Deployments(namespace)
 }
 
@@ -45,44 +43,38 @@ func Extensions() informersv1beta1.Interface {
 
 // Return a lister interface for namespaces.
 func Namespaces() listersv1.NamespaceLister {
-	mustBeInitialized()
 	return Core().Namespaces().Lister()
 }
 
 // Return a lister interface for nodes.
 func Nodes() listersv1.NodeLister {
-	mustBeInitialized()
 	return Core().Nodes().Lister()
 }
 
 // Returns a lister interface for pods.
 func Pods(namespace string) listersv1.PodNamespaceLister {
-	mustBeInitialized()
 	return Core().Pods().Lister().Pods(namespace)
 }
 
 // Return a lister interface for services.
 func Services(namespace string) listersv1.ServiceNamespaceLister {
-	mustBeInitialized()
 	return Core().Services().Lister().Services(namespace)
 }
 
 // Returns a lister interface for statefulsets.
 func StatefulSets(namespace string) listersappsv1.StatefulSetNamespaceLister {
-	mustBeInitialized()
 	return Apps().StatefulSets().Lister().StatefulSets(namespace)
 }
 
 func VeleroBackups() velerolistersv1.BackupLister {
-	mustBeInitialized()
 	return VeleroV1().Backups().Lister()
 }
 
 func VeleroSchedules() velerolistersv1.ScheduleLister {
-	mustBeInitialized()
 	return VeleroV1().Schedules().Lister()
 }
 
 func VeleroV1() veleroinformersv1.Interface {
+	mustBeInitialized()
 	return VeleroFactory.Velero().V1()
 }

@@ -18,18 +18,19 @@ type Namespace struct {
 	TenantInfo       TenantInfo   `json:"tenant"`
 	HealthReport     HealthReport `json:"health"`
 
-	DaemonSets   []DaemonSet         `json:"daemonsets"`
-	Deployments  []Deployment        `json:"deployments"`
-	Pods         []Pod               `json:"pods"`
+	DaemonSets   []DaemonSet         `json:"daemonsets,omitempty"`
+	Deployments  []Deployment        `json:"deployments,omitempty"`
+	Events       []corev1.Event      `json:"events,omitempty"`
+	Pods         []Pod               `json:"pods,omitempty"`
 	Services     []Service           `json:"services,omitempty"`
-	StatefulSets []StatefulSet       `json:"statefulsets"`
-	Velero       NamespaceVeleroInfo `json:"velero"`
+	StatefulSets []StatefulSet       `json:"statefulsets,omitempty"`
+	Velero       NamespaceVeleroInfo `json:"velero,omitempty"`
 }
 
 func NewNamespace(raw *corev1.Namespace) Namespace {
 	ns := Namespace{
 		Namespace:    *raw,
-		TenantInfo:   ParseTenantInfo(raw.Namespace),
+		TenantInfo:   ParseTenantInfo(raw.Name),
 		HealthReport: HealthReport{},
 		DaemonSets:   make([]DaemonSet, 0),
 		Deployments:  make([]Deployment, 0),
@@ -38,6 +39,15 @@ func NewNamespace(raw *corev1.Namespace) Namespace {
 		StatefulSets: make([]StatefulSet, 0),
 		Velero:       NamespaceVeleroInfo{},
 	}
+
+	ns.Kind = "Namespace"
+
+	return ns
+}
+
+func NewNamespaceWithEvents(raw *corev1.Namespace, events []corev1.Event) Namespace {
+	ns := NewNamespace(raw)
+	ns.Events = events
 	return ns
 }
 

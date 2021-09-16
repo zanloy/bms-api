@@ -80,7 +80,7 @@ func TestNewNode(t *testing.T) {
 
 func TestAddMetrics(t *testing.T) {
 	node := models.NewNode(&healthyNode, true)
-	node.AddMetrics(metrics1m1Mi)
+	node.AddMetrics(&metrics1m1Mi)
 	assert.Equal(t, "1", node.Status.Allocatable[corev1.ResourceCPU])
 	assert.Equal(t, "1Mi", node.Status.Allocatable[corev1.ResourceMemory])
 }

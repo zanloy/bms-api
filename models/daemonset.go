@@ -19,6 +19,8 @@ func NewDaemonSet(raw *extensionsv1beta1.DaemonSet, checkHealth bool) DaemonSet 
 		HealthReport: HealthReport{},
 	}
 
+	ds.Kind = "DaemonSet"
+
 	if checkHealth {
 		ds.CheckHealth()
 	}

@@ -11,8 +11,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/zanloy/bms-api/kubernetes"
 	"github.com/zanloy/bms-api/models"
-	"gopkg.in/olahol/melody.v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
@@ -28,14 +26,13 @@ func GetTargets() []models.URLCheck {
 
 // Start will begin monitoring all URLCheck targets until told to stop via the
 // stopCh channel.
-func Start(targetsin []models.URLCheck, stopCh <-chan struct{}) {
+func Start(stopCh <-chan struct{}) {
 	logger = log.With().
 		Timestamp().
 		Str("component", "url").
 		Logger()
 
 	logger.Info().Msg("Starting URL checker.")
-	Reload(targetsin)
 	runChecks() // To get initial health
 
 	go wait.Until(runChecks, time.Minute, stopCh)
@@ -48,11 +45,18 @@ func GetResults() []models.URLCheck {
 	return targets
 }
 
-func Reload(targetsin []models.URLCheck) {
+func Load(targetsin []models.URLCheckMeta) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	targets = targetsin
+	targets = make([]models.URLCheck, len(targetsin))
+	for idx := range targetsin {
+		if targetsin[idx].Type == "" {
+			targetsin[idx].Type = models.RespTypeHTTPStatus
+		}
+		targets[idx].Meta = targetsin[idx]
+	}
+
 	logger.Info().Msg(fmt.Sprintf("Loaded %d URLs.", len(targets)))
 }
 
@@ -71,46 +75,45 @@ func runChecks() {
 	for idx := range targets {
 		go func(target *models.URLCheck) {
 			defer wg.Done()
-			prevHealthy := target.Healthy
-			prevText := target.Text
+			prevHealthReport := target.HealthReport
 			logger.Debug().
-				Str("previous_healthy", string(prevHealthy)).
-				Msg(fmt.Sprintf("Checking %s", target.Url))
+				Str("previous_healthy", string(prevHealthReport.Healthy)).
+				Msg(fmt.Sprintf("Checking %s", target.Meta.Url))
 			start_time := time.Now()
 
 			target.Check()
 
 			logger.Debug().
-				Str("previous_healthy", string(prevHealthy)).
-				Str("healthy", string(target.Healthy)).
-				Msg(fmt.Sprintf("Completed check of %s in %.2fs.", target.Url, time.Since(start_time).Seconds()))
+				Str("previous_healthy", string(prevHealthReport.Healthy)).
+				Str("healthy", string(target.HealthReport.Healthy)).
+				Msg(fmt.Sprintf("Completed check of %s in %.2fs.", target.Meta.Url, time.Since(start_time).Seconds()))
 
-			if target.Healthy != prevHealthy {
+			if target.HealthReport.Healthy != prevHealthReport.Healthy {
 				// Alert the press!
 				update := models.HealthUpdate{
-					TypeMeta: metav1.TypeMeta{
-						Kind: "url",
+					Kind:      "Url",
+					Name:      target.Meta.Name,
+					Namespace: "",
+					TenantInfo: models.TenantInfo{
+						Name:        "platform",
+						Environment: "",
 					},
-					Name: target.Name,
-					HealthReport: models.HealthReport{
-						Healthy: target.Healthy,
-						Errors:  []string{target.Text},
-					},
-					Action: "update",
-					PreviousHealthReport: &models.HealthReport{
-						Healthy: prevHealthy,
-						Errors:  []string{prevText},
-					},
+					Action:               "update",
+					HealthReport:         target.HealthReport,
+					PreviousHealthReport: &prevHealthReport,
 				}
 
-				kubernetes.HealthUpdates.BroadcastFilter(update.ToMsg(), func(s *melody.Session) bool {
-					sessKind, ok := s.Get("kind")
-					if !ok || sessKind == "url" || sessKind == "all" {
-						return true
-					} else {
-						return false
-					}
-				})
+				/*
+					kubernetes.HealthUpdates.BroadcastFilter(update.ToMsg(), func(s *melody.Session) bool {
+						sessKind, ok := s.Get("kind")
+						if !ok || sessKind == "url" || sessKind == "all" {
+							return true
+						} else {
+							return false
+						}
+					})
+				*/
+				kubernetes.HealthUpdates.Broadcast(update.ToMsg())
 			}
 		}(&targets[idx])
 	}

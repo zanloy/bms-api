@@ -30,6 +30,7 @@ type HealthReport struct {
 	Errors    []string      `json:"errors,omitempty"`
 	Warnings  []string      `json:"warnings,omitempty"`
 	Alerts    []string      `json:"alerts,omitempty"`
+	Text      string        `json:"text,omitempty"`
 }
 
 func NewHealthReport() HealthReport {
@@ -39,6 +40,7 @@ func NewHealthReport() HealthReport {
 		Errors:    make([]string, 0),
 		Warnings:  make([]string, 0),
 		Alerts:    make([]string, 0),
+		Text:      "",
 	}
 }
 

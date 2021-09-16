@@ -3,7 +3,6 @@ package models // import github.com/zanloy/bms-api/models
 import (
 	"fmt"
 	"regexp"
-	"time"
 
 	"github.com/elgs/gojq"
 	"github.com/go-resty/resty/v2"
@@ -25,20 +24,21 @@ func init() {
 	RestyClient = resty.New()
 }
 
+type URLCheckMeta struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Type        RespType `json:"type"`
+	Url         string   `json:"url"`
+	FailTrue    bool     `json:"fail_true,omitempty"` // True will invert our result.
+	JSONPath    string   `json:"jsonpath,omitempty"`  // Used for json Type.
+	RegExp      string   `json:"regexp,omitempty"`
+}
+
 // A URLCheck will treat a match against RegExp field as healthy unless FailTrue
 // is set which inverts the result.
 type URLCheck struct {
-	Name     string        `json:"name"`
-	Desc     string        `json:"description,omitempty"`
-	Url      string        `json:"url"`
-	Type     RespType      `json:"type"`
-	FailTrue bool          `json:"fail_true,omitempty"` // True will invert our result.
-	JSONPath string        `json:"jsonpath,omitempty"`  // Used for json Type.
-	RegExp   string        `json:"regexp,omitempty"`
-	Date     time.Time     `json:"date,omitempty"`
-	Healthy  HealthyStatus `json:"healthy"`
-	Text     string        `json:"text,omitempty"`
-	Errors   []string      `json:"errors,omitempty"`
+	Meta         URLCheckMeta `json:"metadata"`
+	HealthReport HealthReport `json:"health"`
 }
 
 // URLClientOpts is a struct to hold all configuration options needed for
@@ -53,41 +53,39 @@ type URLClientOpts struct {
 // Check will verify health of the URLCheck and populate the relevent fields.
 func (uc *URLCheck) Check() {
 	// Reset any previous results
-	uc.Date = time.Now()
-	uc.Healthy = StatusUnknown
-	uc.Errors = make([]string, 0)
+	uc.HealthReport = NewHealthReport()
 
 	// nil check client
 	if RestyClient == nil {
-		uc.Errors = append(uc.Errors, "resty client has not been initialized")
+		uc.HealthReport.AddError("resty client has not been initialized")
 		return
 	}
 
 	// Make request
 	req := RestyClient.NewRequest()
-	if resp, err := req.Get(uc.Url); err == nil {
+	if resp, err := req.Get(uc.Meta.Url); err == nil {
 		uc.checkResponse(resp)
 	} else {
-		uc.Errors = append(uc.Errors, err.Error())
+		uc.HealthReport.AddError(err.Error())
 	}
 }
 
 // CheckHTTPBody will take the response body and check our RegExp against it.
 func (uc *URLCheck) checkHTTPBody(resp *resty.Response) {
 	// Check RegExp
-	if uc.RegExp == "" {
-		uc.Errors = append(uc.Errors, "RegExp can not be null.")
+	if uc.Meta.RegExp == "" {
+		uc.HealthReport.AddError(fmt.Sprintf("regexp can not be null when type='%s'", RespTypeHTTPBody))
 		return
 	}
 
 	body := resp.Body()
 
-	uc.Healthy, uc.Errors = checkValidity(string(body), uc.RegExp)
-	switch uc.Healthy {
+	uc.HealthReport.Healthy, uc.HealthReport.Errors = checkValidity(string(body), uc.Meta.RegExp)
+	switch uc.HealthReport.Healthy {
 	case StatusHealthy:
-		uc.Text = "healthy"
+		uc.HealthReport.Text = "healthy"
 	case StatusUnhealthy:
-		uc.Text = "unhealthy"
+		uc.HealthReport.Text = "unhealthy"
 	}
 }
 
@@ -97,31 +95,31 @@ func (uc *URLCheck) checkHTTPBody(resp *resty.Response) {
 func (uc *URLCheck) checkHTTPStatus(resp *resty.Response) {
 	// Load RegExp
 	var expr string
-	if uc.RegExp == "" {
+	if uc.Meta.RegExp == "" {
 		expr = `^[^(4|5)]\d\d` // Check for any non 4xx/5xx status codes
 	} else {
-		expr = uc.RegExp
+		expr = uc.Meta.RegExp
 	}
 
-	uc.Healthy, uc.Errors = checkValidity(resp.Status(), expr)
-	uc.Text = resp.Status()
+	uc.HealthReport.Healthy, uc.HealthReport.Errors = checkValidity(resp.Status(), expr)
+	uc.HealthReport.Text = resp.Status()
 }
 
 // CheckJSON will attempt to parse the response body into json. If RegExp is
 // empty then we only validate that the field exists in the response.
 func (uc *URLCheck) checkJSON(resp *resty.Response) {
 	// Check Path
-	if uc.JSONPath == "" {
-		uc.Errors = append(uc.Errors, "Path can not be null for a json check.")
+	if uc.Meta.JSONPath == "" {
+		uc.HealthReport.AddError(fmt.Sprintf("path can not be null when type='%s'", RespTypeJSON))
 		return
 	}
 
 	// Load RegExp
 	var expr string
-	if uc.RegExp == "" {
+	if uc.Meta.RegExp == "" {
 		expr = "."
 	} else {
-		expr = uc.RegExp
+		expr = uc.Meta.RegExp
 	}
 
 	// Parse JSON body
@@ -129,13 +127,13 @@ func (uc *URLCheck) checkJSON(resp *resty.Response) {
 
 	parser, err := gojq.NewStringQuery(string(body))
 	if err != nil {
-		uc.Errors = append(uc.Errors, err.Error())
+		uc.HealthReport.AddError(err.Error())
 		return
 	}
 
-	raw, err := parser.Query(uc.JSONPath)
+	raw, err := parser.Query(uc.Meta.JSONPath)
 	if err != nil {
-		uc.Errors = append(uc.Errors, err.Error())
+		uc.HealthReport.AddError(err.Error())
 		return
 	}
 
@@ -154,18 +152,18 @@ func (uc *URLCheck) checkJSON(resp *resty.Response) {
 		val = fmt.Sprint(typed)
 	default:
 		// We don't know what to do with this.
-		uc.Errors = append(uc.Errors, "JSON value type assertion failure. Parser can only handle basic type of string, bool, and int/float.")
+		uc.HealthReport.AddError("json value type assertion failed: parser can only handle basic type of string, bool, and int/float")
 		return
 	}
 
-	uc.Healthy, uc.Errors = checkValidity(val, expr)
-	uc.Text = val
+	uc.HealthReport.Healthy, uc.HealthReport.Errors = checkValidity(val, expr)
+	uc.HealthReport.Text = val
 }
 
 // checkResponse will look at the check and use the appropriate validator
 // based on the Type field.
 func (uc *URLCheck) checkResponse(resp *resty.Response) {
-	switch uc.Type {
+	switch uc.Meta.Type {
 	case RespTypeHTTPBody:
 		uc.checkHTTPBody(resp)
 	case RespTypeJSON:
@@ -175,12 +173,12 @@ func (uc *URLCheck) checkResponse(resp *resty.Response) {
 	}
 
 	// Check if we should fail true
-	if uc.FailTrue {
-		switch uc.Healthy {
+	if uc.Meta.FailTrue {
+		switch uc.HealthReport.Healthy {
 		case StatusHealthy:
-			uc.Healthy = StatusUnhealthy
+			uc.HealthReport.Healthy = StatusUnhealthy
 		case StatusUnhealthy:
-			uc.Healthy = StatusHealthy
+			uc.HealthReport.Healthy = StatusHealthy
 		}
 	}
 }

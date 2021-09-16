@@ -19,6 +19,8 @@ func NewStatefulSet(raw *appsv1.StatefulSet, checkHealth bool) StatefulSet {
 		HealthReport: HealthReport{},
 	}
 
+	ss.Kind = "StatefulSet"
+
 	if checkHealth {
 		ss.CheckHealth()
 	}
