@@ -8,6 +8,7 @@ type Pod struct {
 	corev1.Pod   `json:",inline"`
 	TenantInfo   TenantInfo   `json:"tenant"`
 	HealthReport HealthReport `json:"health"`
+	Restarts     int32        `json:"restarts"`
 }
 
 func NewPod(raw *corev1.Pod, checkHealth bool) Pod {
@@ -15,6 +16,9 @@ func NewPod(raw *corev1.Pod, checkHealth bool) Pod {
 		Pod:          *raw,
 		TenantInfo:   ParseTenantInfo(raw.Namespace),
 		HealthReport: HealthReport{},
+	}
+	for _, cs := range pod.Status.ContainerStatuses {
+		pod.Restarts += cs.RestartCount
 	}
 
 	pod.Kind = "Pod"

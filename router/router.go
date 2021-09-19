@@ -45,6 +45,11 @@ func SetupRouter() *gin.Engine {
 		ctx.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
 
+	healthGrp := router.Group("/health")
+	{
+		healthGrp.GET("/namespaces", namespaceCtl.GetNamespacesHealth)
+	}
+
 	socketGrp := router.Group("/ws")
 	{
 		// This endpoint has no filter and will notify on all health updates

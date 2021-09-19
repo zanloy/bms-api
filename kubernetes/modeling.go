@@ -85,17 +85,19 @@ func GetNamespace(name string) (models.Namespace, error) {
 	ns.Services, _ = GetServices(ns.Name)
 	ns.StatefulSets, _ = GetStatefulSets(ns.Name)
 
-	schedules, _ := GetVeleroSchedules(ns.Name)
-	backups, _ := GetVeleroBackups(ns.Name)
-	ns.Velero = models.NamespaceVeleroInfo{
-		Schedules: schedules,
-		Backups:   backups,
+	if HasAddon("velero") {
+		schedules, _ := GetVeleroSchedules(ns.Name)
+		backups, _ := GetVeleroBackups(ns.Name)
+		ns.Velero = models.NamespaceVeleroInfo{
+			Schedules: schedules,
+			Backups:   backups,
+		}
 	}
 
 	// TODO: Get bms configmap
 	// Setup values from config
 
-	ns.CheckHealth()
+	ns.CheckHealth(addons)
 	return ns, nil
 }
 

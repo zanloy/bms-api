@@ -6,6 +6,8 @@ package config // import "github.com/zanloy/bms-api/config"
 */
 
 import (
+	"bytes"
+	_ "embed"
 	"fmt"
 
 	"github.com/fsnotify/fsnotify"
@@ -13,18 +15,16 @@ import (
 	"github.com/spf13/viper"
 	"github.com/zanloy/bms-api/models"
 	"github.com/zanloy/bms-api/url"
-	"github.com/zanloy/bms-api/wsrouter"
 	"k8s.io/client-go/util/homedir"
 )
 
-var Config = models.Config{}
-var logger = log.With().
-	Timestamp().
-	Str("component", "Config").
-	Logger()
+var logger = log.With().Str("component", "config").Logger()
+
+//go:embed default.yaml
+var defaultConfig []byte
 
 func Load() {
-	logger.Debug().Msg("Loading config file...")
+	logger.Info().Msg("Loading config file...")
 
 	viper.SetConfigName("bms-api")
 
@@ -36,9 +36,11 @@ func Load() {
 	viper.AddConfigPath("/etc")
 	viper.AddConfigPath("/")
 
+	// Find the config file.
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			logger.Fatal().Err(err).Msg("Failed to find config file. Searched for /etc/bms-api/bms-api.yaml, /bms-api.yaml, and $HOME/bms-api.yaml.")
+			logger.Info().Msg("No config file was found... loading sane defaults.")
+			viper.ReadConfig(bytes.NewBuffer(defaultConfig))
 		} else {
 			logger.Fatal().Err(err).Msg("Found config file but an error occured while trying to load it.")
 		}
@@ -46,7 +48,11 @@ func Load() {
 		logger.Info().Msg(fmt.Sprintf("Loaded config file at %s.", viper.ConfigFileUsed()))
 	}
 
-	if err := viper.Unmarshal(&Config); err != nil {
+	var tmp models.Config
+	viper.UnmarshalExact(&tmp)
+	logger.Info().Interface("config", tmp).Msg("WORK!")
+
+	if err := viper.UnmarshalExact(&models.Config{}); err != nil {
 		logger.Fatal().Err(err).Msg("Failed to parse config file.")
 	}
 
@@ -54,20 +60,21 @@ func Load() {
 	viper.OnConfigChange(reload)
 
 	// Tell other components to load resources from Config
-	url.Load(Config.Urls)
-	wsrouter.LoadFilters(Config.Filters)
+	announce()
 
 	// Celebrate!
 	logger.Info().Msg(fmt.Sprintf("Config file successfully loaded from %s.", viper.ConfigFileUsed()))
 }
 
+func announce() {
+	url.Load()
+	//wsrouter.LoadFilters()
+}
+
 func reload(e fsnotify.Event) {
 	logger.Info().Msg("Config file changed. Reloading...")
-	var newconfig = models.Config{}
-	if err := viper.Unmarshal(&newconfig); err == nil {
-		Config = newconfig    // Replace old config
-		url.Load(Config.Urls) // Reload our url checks
-		wsrouter.LoadFilters(Config.Filters)
+	if err := viper.UnmarshalExact(&models.Config{}); err == nil {
+		announce() // Tell the world we got new datas!
 	} else {
 		logger.Err(err).Msg("Failed to parse config file. Retaining previous config.")
 	}

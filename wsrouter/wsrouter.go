@@ -6,11 +6,15 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 	"github.com/zanloy/bms-api/models"
 	"gopkg.in/olahol/melody.v1"
 )
 
 var (
+	logger = log.With().Str("component", "wsrouter").Logger()
+
 	Objects = []string{
 		"daemonset",
 		"deployment",
@@ -20,17 +24,28 @@ var (
 		"statefulset",
 		"url",
 	}
-	outboxes = map[string]melody.Melody{"all": *melody.New()}
+
+	filters       []models.Filter
+	filtersByKind map[string][]models.Filter
+	outboxes      map[string]melody.Melody
 )
 
 func init() {
+	// Setup logger
+	logger = log.With().Str("component", "wsrouter").Logger()
+
+	// Set sane defaults in viper
+	viper.SetDefault("filters", make([]models.Filter, 0))
+
 	// Setup outboxes for all our monitored objects
+	outboxes = map[string]melody.Melody{"all": *melody.New()}
 	for _, obj := range Objects {
 		outboxes[obj] = *melody.New()
 	}
-}
 
-var filters = map[string][]string{}
+	// Init (empty) data
+	filters = make([]models.Filter, 0)
+}
 
 func HandleRequest(kind string, w http.ResponseWriter, r *http.Request) error {
 	if !hasOutbox(kind) {
@@ -40,30 +55,39 @@ func HandleRequest(kind string, w http.ResponseWriter, r *http.Request) error {
 	return box.HandleRequest(w, r)
 }
 
-func LoadFilters(input []models.Filter) {
-	// Initialize our data structure
-	filters = map[string][]string{} // (re)init map
-	for _, obj := range Objects {
-		filters[obj] = make([]string, 0)
+func LoadFilters() {
+	// Just in case
+	prevFilters := filters
+
+	// Reset data
+	if err := viper.UnmarshalKey("filters", filters); err == nil {
+		logger.Warn().Msg("Failed to load filter from config file.")
+		filters = prevFilters
 	}
 
+	// TODO: This is a fucking mess, we need to store the filters in an easily searchable way...
+
 	// Process filters from Config
-	for _, filter := range input {
-		if filter.Kind == "" {
+	for idx := range filters {
+		if filters[idx].Kind == "" {
 			// A filter is invalid if Name is missing
 			continue
 		}
 
-		filter.Kind = strings.ToLower(filter.Kind)
+		filters[idx].Kind = strings.ToLower(filters[idx].Kind)
 
-		if _, ok := filters[filter.Kind]; ok {
-			filters[filter.Kind] = append(filters[filter.Kind], filter.Name)
+		if _, ok := filtersByKind[filters[idx].Kind]; ok {
+			filtersByKind[filters[idx].Kind] = append(filtersByKind[filters[idx].Kind], filters[idx])
 		}
 	}
 
+	sortFilters()
+}
+
+func sortFilters() {
 	// Sort our arrays for easy binary searching later
-	for key := range filters {
-		sort.Strings(filters[key])
+	for key := range filtersByKind {
+		sort.Strings(filtersByKind[key])
 	}
 }
 

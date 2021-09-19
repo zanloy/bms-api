@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/zanloy/bms-api/kubernetes"
+	"github.com/zanloy/bms-api/models"
 )
 
 type NamespaceController struct{}
@@ -20,6 +21,18 @@ func (ctl *NamespaceController) GetNamespace(ctx *gin.Context) {
 func (ctl *NamespaceController) GetNamespaces(ctx *gin.Context) {
 	if results, errs := kubernetes.GetNamespaces(); len(errs) == 0 {
 		ctx.JSON(http.StatusOK, results)
+	} else {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": errs})
+	}
+}
+
+func (ctl *NamespaceController) GetNamespacesHealth(ctx *gin.Context) {
+	if namespaces, errs := kubernetes.GetNamespaces(); len(errs) == 0 {
+		var reports []models.HealthReport
+		for _, ns := range namespaces {
+			reports = append(reports, ns.HealthReport)
+		}
+		ctx.JSON(http.StatusOK, reports)
 	} else {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": errs})
 	}

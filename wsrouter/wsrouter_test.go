@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gorilla/websocket"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/zanloy/bms-api/models"
 	"gopkg.in/olahol/melody.v1"
@@ -67,6 +68,7 @@ func TestLoadFilters(t *testing.T) {
 		Name:   "laurel",
 	}}
 
+	viper.Set("")
 	LoadFilters(testData)
 
 	// Make sure our filters were put in the correct location.

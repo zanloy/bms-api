@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -13,7 +14,10 @@ import (
 	veleroinformers "github.com/vmware-tanzu/velero/pkg/generated/informers/externalversions"
 	"github.com/zanloy/bms-api/helpers"
 	"gopkg.in/olahol/melody.v1"
+	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
 	ogkubernetes "k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
@@ -34,14 +38,17 @@ var (
 
 /* Package scoped variables */
 var (
-	logger          zerolog.Logger
-	Clientset       ogkubernetes.Interface
-	Config          *rest.Config
-	Factory         informers.SharedInformerFactory
+	logger zerolog.Logger
+
+	Clientset ogkubernetes.Interface
+	Config    *rest.Config
+	Factory   informers.SharedInformerFactory
+
 	VeleroClientset veleroclientset.Interface
 	VeleroConfig    veleroclient.VeleroConfig
 	VeleroFactory   veleroinformers.SharedInformerFactory
 
+	addons        []string
 	HealthUpdates = melody.New()
 	stopCh        <-chan struct{}
 )
@@ -104,6 +111,7 @@ func Start(stopChannel <-chan struct{}) {
 	/* Setup velero informer */
 	VeleroFactory = veleroinformers.NewSharedInformerFactory(VeleroClientset, 0)
 
+	scanAddons()
 	setupInformers()
 	Factory.Start(stopCh)
 	VeleroFactory.Start(stopCh)
@@ -122,6 +130,52 @@ func Start(stopChannel <-chan struct{}) {
 func mustBeInitialized() {
 	if Clientset == nil {
 		logger.Fatal().Msg("Attempted to read from Kubernetes before initialized.")
+	}
+}
+
+func HasAddon(name string) bool {
+	return sort.SearchStrings(addons, name) < len(addons)
+}
+
+/*
+	scanAddons will scan for indicators (usually CRDs) that particular
+	Kubernetes "addons" are installed in the target cluster.
+*/
+func scanAddons() {
+	// Look for Velero
+	if CRDExists("backups.velero.io") {
+		addons = append(addons, "velero")
+	}
+
+	// Finally, we need to sort the list for binary searching
+	sort.Strings(addons)
+}
+
+func CRDExists(name string) bool {
+	// Velero
+	gvk := schema.FromAPIVersionAndKind(apiextv1beta1.SchemeGroupVersion.String(), "CustomResourceDefinition")
+	apiResource := metav1.APIResource{
+		Name:       "customresourcedefinition",
+		Namespaced: false,
+	}
+
+	var dynamicFactory veleroclient.DynamicFactory
+	factory := veleroclient.NewFactory("bms", VeleroConfig)
+	if c, err := factory.DynamicClient(); err != nil {
+		dynamicFactory = veleroclient.NewDynamicFactory(c)
+	} else {
+		return false
+	}
+
+	if c, err := dynamicFactory.ClientForGroupVersionResource(gvk.GroupVersion(), apiResource, ""); err != nil {
+		_, err := c.Get(name, metav1.GetOptions{})
+		if err != nil {
+			return false
+		} else {
+			return true
+		}
+	} else {
+		return false
 	}
 }
 

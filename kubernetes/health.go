@@ -44,14 +44,13 @@ func HealthUpdateFor(obj interface{}, action string) (models.HealthUpdate, error
 		ns.Pods, _ = GetPods(ns.Name)
 		ns.Services, _ = GetServices(ns.Name)
 		ns.StatefulSets, _ = GetStatefulSets(ns.Name)
-		// TODO: Fix this
 		schedules, _ := GetVeleroSchedules(ns.Name)
 		backups, _ := GetVeleroBackups(ns.Name)
 		ns.Velero = models.NamespaceVeleroInfo{
 			Schedules: schedules,
 			Backups:   backups,
 		}
-		ns.CheckHealth()
+		ns.CheckHealth(addons)
 		return models.HealthUpdate{
 			TypeMeta:             ns.TypeMeta,
 			Kind:                 "Namespace",

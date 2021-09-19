@@ -1,0 +1,17 @@
+---
+namespace: bms
+environments:
+  - cola
+  - demo
+  - dev
+  - int
+  - ivv
+  - pat
+  - pdt
+  - perf
+  - preprod
+  - prod
+  - prodtest
+  - sqa
+  - test
+  - uat

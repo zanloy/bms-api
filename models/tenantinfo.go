@@ -1,7 +1,10 @@
 package models // import https://github.com/zanloy/bms-api/models
 
 import (
+	"sort"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
 type TenantInfo struct {
@@ -16,8 +19,10 @@ func ParseTenantInfo(namespace string) (tt TenantInfo) {
 	// See if we can set Tenant/Env from Name
 	if strings.Contains(namespace, "-") {
 		parts := strings.Split(namespace, "-")
-		switch last := parts[len(parts)-1]; last {
-		case "cola", "demo", "dev", "int", "ivv", "pat", "pdt", "perf", "preprod", "prod", "prodtest", "sqa", "test", "uat":
+		last := parts[len(parts)-1]
+		environments := viper.GetStringSlice("environments")
+		sort.Strings(environments)
+		if sort.SearchStrings(environments, last) < len(environments) {
 			tt.Environment = last
 			tt.Name = strings.Join(parts[:len(parts)-1], "-")
 		}

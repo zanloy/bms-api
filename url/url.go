@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 	"github.com/zanloy/bms-api/kubernetes"
 	"github.com/zanloy/bms-api/models"
 )
@@ -19,6 +20,11 @@ var (
 	mutex   = sync.Mutex{}
 )
 
+func init() {
+	logger = log.With().Str("component", "url").Logger()
+	viper.SetDefault("urls", make([]models.URLCheck, 0))
+}
+
 // GetTargets will return an array of all the targets being monitored.
 func GetTargets() []models.URLCheck {
 	return targets
@@ -27,11 +33,6 @@ func GetTargets() []models.URLCheck {
 // Start will begin monitoring all URLCheck targets until told to stop via the
 // stopCh channel.
 func Start(stopCh <-chan struct{}) {
-	logger = log.With().
-		Timestamp().
-		Str("component", "url").
-		Logger()
-
 	logger.Info().Msg("Starting URL checker.")
 	runChecks() // To get initial health
 
@@ -45,16 +46,23 @@ func GetResults() []models.URLCheck {
 	return targets
 }
 
-func Load(targetsin []models.URLCheckMeta) {
+func Load() {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	targets = make([]models.URLCheck, len(targetsin))
-	for idx := range targetsin {
-		if targetsin[idx].Type == "" {
-			targetsin[idx].Type = models.RespTypeHTTPStatus
+	var targetsin []models.URLCheckMeta
+	if err := viper.UnmarshalKey("urls", &targetsin); err != nil {
+		logger.Fatal().Err(err).Msg("Failed to load URLs from config.")
+	}
+	logger.Debug().Interface("targetsin", targetsin).Msg("WORK!")
+
+	targets = make([]models.URLCheck, 0)
+	for _, target := range targetsin {
+		if target.Type == "" {
+			target.Type = models.RespTypeHTTPStatus
 		}
-		targets[idx].Meta = targetsin[idx]
+		targets = append(targets, models.URLCheck{Meta: target})
+		logger.Info().Msg(fmt.Sprintf("Loaded URL: %s", target.Name))
 	}
 
 	logger.Info().Msg(fmt.Sprintf("Loaded %d URLs.", len(targets)))

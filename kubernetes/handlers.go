@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/zanloy/bms-api/models"
-	"github.com/zanloy/bms-api/wsrouter"
 
 	"gopkg.in/olahol/melody.v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -42,11 +41,13 @@ func setupInformers() {
 	Factory.Apps().V1().
 		StatefulSets().Informer().AddEventHandler(handlers)
 
-	VeleroFactory.Velero().V1().
-		Backups().Informer().AddEventHandler(handlers)
+	if HasAddon("velero") {
+		VeleroFactory.Velero().V1().
+			Backups().Informer().AddEventHandler(handlers)
 
-	VeleroFactory.Velero().V1().
-		Schedules().Informer().AddEventHandler(handlers)
+		VeleroFactory.Velero().V1().
+			Schedules().Informer().AddEventHandler(handlers)
+	}
 }
 
 type filterFunc func(*melody.Session) bool
@@ -187,8 +188,6 @@ func handleAdd(obj interface{}) {
 		return
 	}
 
-	wsrouter.Broadcast(update)
-
 	HealthUpdates.BroadcastFilter(update.ToMsg(), FilterFor(obj))
 	broadcastNamespaceHealth(update.Namespace)
 }
@@ -217,7 +216,6 @@ func handleUpdate(prevObj interface{}, obj interface{}) {
 
 	//logger.Debug().Interface("object", obj).Msg("Update event occurred.")
 	if update.Healthy != prevReport.Healthy {
-		wsrouter.Broadcast(update)
 		HealthUpdates.BroadcastFilter(update.ToMsg(), FilterFor(obj))
 		broadcastNamespaceHealth(update.Namespace)
 	}
@@ -235,8 +233,6 @@ func handleDelete(obj interface{}) {
 		logger.Err(err)
 		return
 	}
-
-	wsrouter.Broadcast(update)
 
 	//logger.Debug().Interface("object", obj).Msg("Delete event occurred.")
 	HealthUpdates.BroadcastFilter(update.ToMsg(), FilterFor(obj))
