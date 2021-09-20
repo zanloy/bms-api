@@ -134,7 +134,11 @@ func mustBeInitialized() {
 }
 
 func HasAddon(name string) bool {
-	return sort.SearchStrings(addons, name) < len(addons)
+	if idx := sort.SearchStrings(addons, name); idx < len(addons) && addons[idx] == name {
+		return true
+	} else {
+		return false
+	}
 }
 
 /*

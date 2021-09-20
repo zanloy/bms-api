@@ -76,7 +76,7 @@ func (ns *Namespace) CheckHealth(addons []string) {
 		report.FoldIn(statefulset.HealthReport, fmt.Sprintf("StatefulSet[%s]", statefulset.Name))
 	}
 	// Velero
-	if sort.SearchStrings(addons, "velero") < len(addons) {
+	if idx := sort.SearchStrings(addons, "velero"); idx < len(addons) && addons[idx] == "velero" {
 		// Make sure we are scheduled for backups
 		if len(ns.Velero.Schedules) < 1 {
 			report.AddWarning("There are no Velero Schedules for this namespace")
