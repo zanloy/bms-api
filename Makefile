@@ -1,7 +1,7 @@
 #export VERSION := $(shell head -n 1 version.txt | tr -d '\n')
 VERSION != head -n 1 version.txt | tr -d '\n'
 
-NEXUS := container-registry.prod8.bip.va.gov:443
+NEXUS := container-registry.prod8.bip.va.gov
 TAG := $(NEXUS)/bms-api:$(VERSION)
 
 .PHONY: build push run
