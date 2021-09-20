@@ -65,7 +65,9 @@ func (ns *Namespace) CheckHealth(addons []string) {
 	}
 	// Pods
 	for _, pod := range ns.Pods {
-		report.FoldIn(pod.HealthReport, fmt.Sprintf("Pod[%s]", pod.Name))
+		if len(pod.ObjectMeta.OwnerReferences) == 0 {
+			report.FoldIn(pod.HealthReport, fmt.Sprintf("Pod[%s]", pod.Name))
+		}
 	}
 	// Services
 	for _, service := range ns.Services {
@@ -113,25 +115,6 @@ func (ns *Namespace) CheckHealth(addons []string) {
 			report.AddWarning("No recent Velero backups found.")
 		}
 	}
-
-	/*
-		// Check Services
-		if services, err := Services(namespace.Name).List(labels.Everything()); err == nil {
-			unhealthyServices := make([]string, 0, len(services))
-			for _, service := range services {
-				report := ReportForService(*service)
-				if report.Healthy != models.StatusHealthy {
-					unhealthyServices = append(unhealthyServices, service.Name)
-				}
-			}
-			if len(unhealthyServices) > 0 {
-				nsreport.Healthy = models.StatusUnhealthy
-				nsreport.Errors = append(nsreport.Errors, fmt.Sprintf("Services with unhealthy status: [%s].", strings.Join(unhealthyServices, ",")))
-			}
-		} else {
-			nsreport.Errors = append(nsreport.Errors, "Failed to fetch Services from Kubernetes.")
-		}
-	*/
 
 	// If nobody said we're unhealthy, that must mean we are health, right?
 	report.FailHealthy()

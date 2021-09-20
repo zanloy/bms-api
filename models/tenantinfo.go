@@ -1,7 +1,6 @@
 package models // import https://github.com/zanloy/bms-api/models
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -22,7 +21,6 @@ func ParseTenantInfo(namespace string) (tt TenantInfo) {
 		parts := strings.Split(namespace, "-")
 		last := parts[len(parts)-1]
 		environments := viper.GetStringSlice("environments")
-		fmt.Printf("environments = %v\n", environments)
 		sort.Strings(environments)
 		idx := sort.SearchStrings(environments, last)
 		if idx < len(environments) && environments[idx] == last {

@@ -50,7 +50,7 @@ func (s *Service) CheckHealth() {
 		if healthy == 0 {
 			report.AddError("There are no ready pods handling request")
 		} else {
-			report.AddWarning(fmt.Sprintf("There are %d pods matching selector but not ready.", int(total-healthy)))
+			report.AddWarning(fmt.Sprintf("%d pod(s) matching selector is not ready", int(total-healthy)))
 		}
 	}
 
