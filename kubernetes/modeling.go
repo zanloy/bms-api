@@ -1,14 +1,12 @@
 package kubernetes // import "github.com/zanloy/bms-api/kubernetes"
 
 import (
-	"context"
 	"fmt"
 	"regexp"
 
 	"github.com/zanloy/bms-api/models"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 )
 
@@ -106,14 +104,12 @@ func GetNamespaceWithEvents(name string) (ns models.Namespace, err error) {
 	if err != nil {
 		return
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
-	events, err := Clientset.CoreV1().Events(name).List(ctx, metav1.ListOptions{})
+	events, err := Events(name).List(labels.Everything())
 	if err != nil {
 		return
 	}
-	ns.Events = events.Items
+	ns.Events = events
 	return
 }
 

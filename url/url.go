@@ -54,7 +54,6 @@ func Load() {
 	if err := viper.UnmarshalKey("urls", &targetsin); err != nil {
 		logger.Fatal().Err(err).Msg("Failed to load URLs from config.")
 	}
-	logger.Debug().Interface("targetsin", targetsin).Msg("WORK!")
 
 	targets = make([]models.URLCheck, 0)
 	for _, target := range targetsin {

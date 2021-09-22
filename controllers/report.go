@@ -35,7 +35,7 @@ func (ctl *ReportController) Create(ctx *gin.Context) {
 			}
 		}
 	} else {
-		err = fmt.Errorf("Failed to get daemonsets from kubernetes: %w", err)
+		err = fmt.Errorf("failed to get daemonsets from kubernetes: %w", err)
 		logAndAppendError(err, &report)
 	}
 
@@ -47,7 +47,7 @@ func (ctl *ReportController) Create(ctx *gin.Context) {
 			}
 		}
 	} else {
-		err = fmt.Errorf("Failed to get deployments from kubernetes: %w", err)
+		err = fmt.Errorf("failed to get deployments from kubernetes: %w", err)
 		logAndAppendError(err, &report)
 	}
 
@@ -59,7 +59,7 @@ func (ctl *ReportController) Create(ctx *gin.Context) {
 			}
 		}
 	} else {
-		err = fmt.Errorf("Failed to get pods from kubernetes: %w", err)
+		err = fmt.Errorf("failed to get pods from kubernetes: %w", err)
 		logAndAppendError(err, &report)
 	}
 
@@ -71,7 +71,7 @@ func (ctl *ReportController) Create(ctx *gin.Context) {
 			}
 		}
 	} else {
-		err = fmt.Errorf("Failed to get statefulsets from kubernetes: %w", err)
+		err = fmt.Errorf("failed to get statefulsets from kubernetes: %w", err)
 		logAndAppendError(err, &report)
 	}
 

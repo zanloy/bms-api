@@ -25,15 +25,3 @@ type Config struct {
 	Environments      []string       `json:"environments,omitempty"`
 	NotificationDelay string         `json:"notification_delay"`
 }
-
-func (config *Config) ShouldNotify(kind string, name string, namespace string) (result bool) {
-	result = true
-	for _, filter := range config.Filters {
-		if filter.Kind == kind && filter.Name == name && filter.Namespace == namespace {
-			if filter.Action == FilterIgnore || filter.Action == FilterMute {
-				return false
-			}
-		}
-	}
-	return
-}

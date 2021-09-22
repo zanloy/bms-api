@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/zanloy/bms-api/models"
+	"github.com/zanloy/bms-api/wsrouter"
 
 	"gopkg.in/olahol/melody.v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -25,6 +26,17 @@ func setupInformers() {
 
 	Factory.Extensions().V1beta1().
 		Deployments().Informer().AddEventHandler(handlers)
+
+	Factory.Core().V1().
+		Events().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			if typed, ok := obj.(*corev1.Event); ok {
+				wsrouter.EventsChan <- *typed
+			} else {
+				logger.Error().Msg(fmt.Sprintf("%v", typed))
+			}
+		},
+	})
 
 	Factory.Core().V1().
 		Namespaces().Informer().AddEventHandler(handlers)
@@ -147,8 +159,9 @@ func broadcastNamespaceHealth(name string) {
 
 		if update, err := HealthUpdateFor(ns, "refresh"); err == nil {
 			HealthUpdates.Broadcast(update.ToMsg())
+			wsrouter.HealthChan <- update
 		} else {
-			logger.Debug().Msg(fmt.Sprintf("could not find namespace: %s: %v", name, err))
+			logger.Error().Err(err).Msg("error in broadcastNamespaceHealth")
 		}
 	}
 }
@@ -160,6 +173,8 @@ func IsCacheSynced(obj interface{}) bool {
 		return Factory.Extensions().V1beta1().DaemonSets().Informer().HasSynced()
 	case *extensionsv1beta1.Deployment:
 		return Factory.Extensions().V1beta1().Deployments().Informer().HasSynced()
+	case *corev1.Event:
+		return Factory.Core().V1().Events().Informer().HasSynced()
 	case *corev1.Namespace:
 		return Factory.Core().V1().Namespaces().Informer().HasSynced()
 	case *corev1.Node:
@@ -190,6 +205,7 @@ func handleAdd(obj interface{}) {
 
 	HealthUpdates.BroadcastFilter(update.ToMsg(), FilterFor(obj))
 	broadcastNamespaceHealth(update.Namespace)
+	wsrouter.HealthChan <- update
 }
 
 func handleUpdate(prevObj interface{}, obj interface{}) {
@@ -218,6 +234,7 @@ func handleUpdate(prevObj interface{}, obj interface{}) {
 	if update.Healthy != prevReport.Healthy {
 		HealthUpdates.BroadcastFilter(update.ToMsg(), FilterFor(obj))
 		broadcastNamespaceHealth(update.Namespace)
+		wsrouter.HealthChan <- update
 	}
 }
 
@@ -237,4 +254,5 @@ func handleDelete(obj interface{}) {
 	//logger.Debug().Interface("object", obj).Msg("Delete event occurred.")
 	HealthUpdates.BroadcastFilter(update.ToMsg(), FilterFor(obj))
 	broadcastNamespaceHealth(update.Namespace)
+	wsrouter.HealthChan <- update
 }

@@ -72,6 +72,7 @@ func SetupRouter() *gin.Engine {
 		namespaceGrp.GET("/:name", namespaceCtl.GetNamespace)
 		namespaceGrp.GET("/:name/pods", namespaceCtl.GetPods)
 		namespaceGrp.GET("/:name/ws", namespaceCtl.WatchNamespace)
+		namespaceGrp.GET("/:name/events/ws", namespaceCtl.WatchNamespaceEvents)
 	}
 
 	nodeGrp := router.Group("/nodes")

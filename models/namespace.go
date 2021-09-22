@@ -21,7 +21,7 @@ type Namespace struct {
 
 	DaemonSets   []DaemonSet         `json:"daemonsets,omitempty"`
 	Deployments  []Deployment        `json:"deployments,omitempty"`
-	Events       []corev1.Event      `json:"events,omitempty"`
+	Events       []*corev1.Event     `json:"events,omitempty"`
 	Pods         []Pod               `json:"pods,omitempty"`
 	Services     []Service           `json:"services,omitempty"`
 	StatefulSets []StatefulSet       `json:"statefulsets,omitempty"`
@@ -46,7 +46,7 @@ func NewNamespace(raw *corev1.Namespace) Namespace {
 	return ns
 }
 
-func NewNamespaceWithEvents(raw *corev1.Namespace, events []corev1.Event) Namespace {
+func NewNamespaceWithEvents(raw *corev1.Namespace, events []*corev1.Event) Namespace {
 	ns := NewNamespace(raw)
 	ns.Events = events
 	return ns

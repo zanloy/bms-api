@@ -35,6 +35,11 @@ func Deployments(namespace string) listersv1beta1.DeploymentNamespaceLister {
 	return Extensions().Deployments().Lister().Deployments(namespace)
 }
 
+// Returns a lister interface for events.
+func Events(namespace string) listersv1.EventNamespaceLister {
+	return Core().Events().Lister().Events(namespace)
+}
+
 // Returns a base extensions interface.
 func Extensions() informersv1beta1.Interface {
 	mustBeInitialized()

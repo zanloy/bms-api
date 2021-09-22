@@ -14,6 +14,7 @@ import (
 	"github.com/zanloy/bms-api/kubernetes"
 	"github.com/zanloy/bms-api/router"
 	"github.com/zanloy/bms-api/url"
+	"github.com/zanloy/bms-api/wsrouter"
 	"k8s.io/klog"
 )
 
@@ -59,6 +60,9 @@ func main() {
 			os.Exit(0)
 		}
 	}(stopCh)
+
+	/* Setup WebSocket Router */
+	wsrouter.Start(stopCh)
 
 	/* Setup kubernetes */
 	if err := kubernetes.Init(*kubeconfig); err != nil {
